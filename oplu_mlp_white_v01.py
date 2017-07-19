@@ -7,22 +7,14 @@ Project: https://github.com/aymericdamien/TensorFlow-Examples/
 '''
 
 
-
 from __future__ import print_function
-
 import numpy as np
-
 
 # Import MNIST data
 from tensorflow.examples.tutorials.mnist import input_data
 mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
 
 import tensorflow as tf
-
-
-# activation --------------------------
-
-
 import scipy.io as sio
 
 # input whitened mnist
@@ -37,28 +29,14 @@ import random
 
 
 def get_batch(batchsize):
-    
     arrayindices = range(labels.shape[0]-batchsize) #last one will be for testing
-    
     random.shuffle(arrayindices)
-    
     return np.transpose(mnist_white[:,arrayindices[0:batchsize]]), labels[arrayindices[0:batchsize],:]
 
 def get_last(batchsize):
-    
     return np.transpose(mnist_white[:,-batchsize:]), labels[-batchsize:,:]
 
-
-
-
-
-    
-
-
-
-
 from tensorflow.python.framework import ops
-
 
 def combine_even_odd(even,odd):
     # slow
@@ -66,7 +44,6 @@ def combine_even_odd(even,odd):
     #res = tf.reshape(z,[tf.shape(even)[0],-1])
     
     # fast https://stackoverflow.com/questions/44952886/tensorflow-merge-two-2-d-tensors-according-to-even-and-odd-indices/
-    
     res = tf.reshape( tf.concat([even[...,tf.newaxis], odd[...,tf.newaxis]], axis=-1), [tf.shape(even)[0],-1])
     
     return res
@@ -75,99 +52,52 @@ def combine_even_odd(even,odd):
 
 @tf.RegisterGradient("OPLUGrad")
 def oplugrad(op, grad): 
-    
-    
-    
     x = op.inputs[0]
-    
     #starting in the same way forward oplu works
-    
     even = x[:,::2] #slicing into odd and even parts on the batch
     odd = x[:,1::2]
-    
-       
     compare = tf.cast(even<odd,dtype=tf.float64)
     compare_not = tf.cast(even>=odd, dtype=tf.float64)
-    
-    
-    #----------
-    
     even_grad = grad[:,::2] # slicing gradients
     odd_grad = grad[:,1::2]
-    
-    
     # OPLU
-    
     grad_even_new = odd_grad * compare + even_grad * compare_not
     grad_odd_new = odd_grad * compare_not + even_grad * compare
-    
     # inteweave gradients back
     grad_new = combine_even_odd(grad_even_new,grad_odd_new)
-           
-    
     return grad_new
 
-
-
-
-
-def tf_oplu(x, name="OPLU"):   
-            
-    
-           
+def tf_oplu(x, name="OPLU"):
             even = x[:,::2] #slicing into odd and even parts on the batch
-            odd = x[:,1::2]            
-            
+            odd = x[:,1::2]
             # OPLU
-                      
             compare = tf.cast(even<odd,dtype=tf.float64)
             compare_not = tf.cast(even>=odd,dtype=tf.float64)
-            
             #def oplu(x,y): # trivial function  
             #    if x<y : # (x<y)==1
             #       return y, x 
             #    else:
             #       return x, y # (x<y)==0
-            
-                       
-            
             even_new = odd * compare + even * compare_not
             odd_new = odd * compare_not + even * compare
-            
-            
-            # combine into one 
+            # combine into one
             y = combine_even_odd(even_new,odd_new)            
-                      
-            
             # https://stackoverflow.com/questions/43256517/how-to-register-a-custom-gradient-for-a-operation-composed-of-tf-operations
             g = tf.get_default_graph()
         
             with g.gradient_override_map({"Identity": "OPLUGrad"}):
-            
                 y = tf.identity(y, name="oplu")
-            
                 #y = tf.Print(y, [tf.shape(y)], message = 'debug: ')
-
-            
                 # just return what forward layer computes
                 return y 
-
-
-
-
-# -------------------------------------
-
-
-
-
 
 # Parameters
 
 # non -whitening learning rate
 #learning_rate = 0.18 # cost function quickly goes to infinity if rate is bigger
-learning_rate = 0.05
-training_epochs = 25
-batch_size = 784
+learning_rate = 0.001
+training_epochs = 2
+batch_size = 32
 display_step = 1
 
 # Network Parameters (all square matrices)
@@ -185,11 +115,9 @@ y = tf.placeholder("float64", [None, n_classes])
 
 # Create model
 def multilayer_perceptron(x, weights, biases):
-    
-        
     # Hidden layer with RELU activation
     layer_1 = tf.add(tf.matmul(x, weights['h1']), biases['b1'])
-    layer_1 = tf_oplu(layer_1)
+    layer_1 = tf.nn.relu(layer_1)
     # Hidden layer with RELU activation
     layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
     layer_2 = tf_oplu(layer_2)
@@ -277,9 +205,9 @@ with tf.Session(config=tf.ConfigProto(
             
             #batch_x, batch_y = mnist.train.next_batch(batch_size)
             batch_x, batch_y = get_batch(batch_size)
-            
+
+            sys.exit()
             #batch_x = zca_whiten(batch_x) # python whitening
-            
             # Run optimization op (backprop) and cost op (to get loss value)
             _, c = sess.run([optimizer, cost], feed_dict={x: batch_x,
                                                           y: batch_y})
