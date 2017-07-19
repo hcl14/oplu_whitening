@@ -14,8 +14,8 @@ batch_size = 5
 display_step = 1
 
 # input whitened mnist
-#mat_contents =  sio.loadmat('matlab_mnist/mnist_blank.mat')
-mat_contents =  sio.loadmat('matlab_mnist/mnist_wh.mat')
+mat_contents =  sio.loadmat('matlab_mnist/mnist_blank.mat')
+#mat_contents =  sio.loadmat('matlab_mnist/mnist_wh.mat')
 
 X1 = np.array(mat_contents['X1']) # (784, 60000)
 T1 = np.transpose(np.array(mat_contents['T1'])) # (1, 60000) # NOT ONE-HOT!
@@ -140,6 +140,9 @@ optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minim
 
 init = tf.global_variables_initializer()
 
+correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, 'float'))
+
 with tf.Session(config=tf.ConfigProto(
   intra_op_parallelism_threads=8)) as sess:
     sess.run(init)
@@ -158,11 +161,9 @@ with tf.Session(config=tf.ConfigProto(
 
         # Display logs per epoch step
         if epoch % display_step == 0:
-            correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
-            accuracy_test = tf.reduce_mean(tf.cast(correct_prediction, 'float'))
-            accuracy_test_val = (accuracy_test.eval({x: X2, y: T2}))*100
-
-            print('Epoch: %d, cost_train = %1.9f, accuracy_test = %1.2f%%' % (epoch + 1, avg_cost_train, accuracy_test_val))
+            accuracy_train_val = (accuracy.eval({x: X1, y: T1})) * 100
+            accuracy_test_val = (accuracy.eval({x: X2, y: T2})) * 100
+            print('Epoch: %d, cost_train = %1.9f, accuracy_train = %1.2f%%, accuracy_test = %1.2f%%' % (epoch + 1, avg_cost_train, accuracy_train_val, accuracy_test_val))
 
     print('Optimization Finished!')
 
@@ -173,7 +174,7 @@ with tf.Session(config=tf.ConfigProto(
     x_b, y_b = get_batch_train(batch_size)
     print(p.eval({x: x_b, y: y_b}))
     correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
-    accuracy_test = tf.reduce_mean(tf.cast(correct_prediction, 'float'))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, 'float'))
     
     #x_b, y_b = get_last(batch_size)
     #print('Accuracy:', accuracy.eval({x: x_b, y: y_b}))
