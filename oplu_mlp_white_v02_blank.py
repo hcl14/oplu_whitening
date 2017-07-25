@@ -14,8 +14,8 @@ batch_size = 5
 display_step = 1
 
 # input whitened mnist
-mat_contents =  sio.loadmat('matlab_mnist/mnist_blank.mat')
-#mat_contents =  sio.loadmat('matlab_mnist/mnist_wh.mat')
+#mat_contents =  sio.loadmat('matlab_mnist/mnist_blank.mat')
+mat_contents =  sio.loadmat('matlab_mnist/mnist_wh.mat')
 
 X1 = np.array(mat_contents['X1']) # (784, 60000)
 T1 = np.transpose(np.array(mat_contents['T1'])) # (1, 60000) # NOT ONE-HOT!
@@ -30,10 +30,17 @@ arrayindices = range(ntrain)
 n_input = X1.shape[1]
 n_classes = T1.shape[1]
 
-n_hidden_1 = 300
-n_hidden_2 = 300
-n_hidden_3 = 300
-n_hidden_4 = 300
+n_hidden_1 = 150
+n_hidden_2 = 150
+n_hidden_3 = 150
+n_hidden_4 = 150
+
+n_hidden_5 = 150
+n_hidden_6 = 150
+n_hidden_7 = 150
+n_hidden_8 = 150
+n_hidden_9 = 150
+n_hidden_10 = 150
 
 @tf.RegisterGradient('OPLUGrad')
 def oplugrad(op, grad): 
@@ -107,6 +114,35 @@ def mlp_OPLU(x, weights, biases):
     out_layer = tf.matmul(layer_4, weights['out']) + biases['out']
     return out_layer
 
+
+def mlp_OPLU_10(x, weights, biases):
+    # Hidden layer with RELU activation
+    layer_1 = tf.add(tf.matmul(x, weights['h1']), biases['b1'])
+    layer_1 = tf_oplu(layer_1)
+    # Hidden layer with RELU activation
+    layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
+    layer_2 = tf_oplu(layer_2)
+    layer_3 = tf.add(tf.matmul(layer_2, weights['h3']), biases['b3'])
+    layer_3 = tf_oplu(layer_3)
+    layer_4 = tf.add(tf.matmul(layer_3, weights['h4']), biases['b4'])
+    layer_4 = tf_oplu(layer_4)
+    layer_5 = tf.add(tf.matmul(layer_4, weights['h5']), biases['b5'])
+    layer_5 = tf_oplu(layer_5)
+    layer_6 = tf.add(tf.matmul(layer_5, weights['h6']), biases['b6'])
+    layer_6 = tf_oplu(layer_6)
+    layer_7 = tf.add(tf.matmul(layer_6, weights['h7']), biases['b7'])
+    layer_7 = tf_oplu(layer_7)
+    layer_8 = tf.add(tf.matmul(layer_7, weights['h8']), biases['b8'])
+    layer_8 = tf_oplu(layer_8)
+    layer_9 = tf.add(tf.matmul(layer_8, weights['h9']), biases['b9'])
+    layer_9 = tf_oplu(layer_9)
+    layer_10 = tf.add(tf.matmul(layer_9, weights['h10']), biases['b10'])
+    layer_10 = tf_oplu(layer_10)
+
+    # Output layer with linear activation
+    out_layer = tf.matmul(layer_10, weights['out']) + biases['out']
+    return out_layer
+
 # orthogonal initialization https://stats.stackexchange.com/questions/228704/how-does-one-initialize-neural-networks-as-suggested-by-saxe-et-al-using-orthogo
 def ort_initializer(shape, dtype=tf.float32):
       scale = 1.1
@@ -124,17 +160,30 @@ weights = {
     'h2': tf.Variable(ort_initializer([n_hidden_1, n_hidden_2]), dtype=tf.float64),
     'h3': tf.Variable(ort_initializer([n_hidden_2, n_hidden_3]), dtype=tf.float64),
     'h4': tf.Variable(ort_initializer([n_hidden_3, n_hidden_4]), dtype=tf.float64),
-    'out': tf.Variable(ort_initializer([n_hidden_4, n_classes]), dtype=tf.float64)
+    'h5': tf.Variable(ort_initializer([n_hidden_4, n_hidden_5]), dtype=tf.float64),
+    'h6': tf.Variable(ort_initializer([n_hidden_5, n_hidden_6]), dtype=tf.float64),
+    'h7': tf.Variable(ort_initializer([n_hidden_6, n_hidden_7]), dtype=tf.float64),
+    'h8': tf.Variable(ort_initializer([n_hidden_7, n_hidden_8]), dtype=tf.float64),
+    'h9': tf.Variable(ort_initializer([n_hidden_8, n_hidden_9]), dtype=tf.float64),
+    'h10': tf.Variable(ort_initializer([n_hidden_9, n_hidden_10]), dtype=tf.float64),
+    'out': tf.Variable(ort_initializer([n_hidden_10, n_classes]), dtype=tf.float64)
 }
 biases = {
     'b1': tf.Variable(tf.zeros([n_hidden_1], dtype=tf.float64), dtype=tf.float64),
     'b2': tf.Variable(tf.zeros([n_hidden_2], dtype=tf.float64), dtype=tf.float64),
     'b3': tf.Variable(tf.zeros([n_hidden_3], dtype=tf.float64), dtype=tf.float64),
     'b4': tf.Variable(tf.zeros([n_hidden_4], dtype=tf.float64), dtype=tf.float64),
+    'b5': tf.Variable(tf.zeros([n_hidden_5], dtype=tf.float64), dtype=tf.float64),
+    'b6': tf.Variable(tf.zeros([n_hidden_6], dtype=tf.float64), dtype=tf.float64),
+    'b7': tf.Variable(tf.zeros([n_hidden_7], dtype=tf.float64), dtype=tf.float64),
+    'b8': tf.Variable(tf.zeros([n_hidden_8], dtype=tf.float64), dtype=tf.float64),
+    'b9': tf.Variable(tf.zeros([n_hidden_9], dtype=tf.float64), dtype=tf.float64),
+    'b10': tf.Variable(tf.zeros([n_hidden_10], dtype=tf.float64), dtype=tf.float64),
     'out': tf.Variable(tf.zeros([n_classes], dtype=tf.float64), dtype=tf.float64)
 }
 
-pred = mlp_OPLU(x, weights, biases)
+#pred = mlp_OPLU(x, weights, biases)
+pred = mlp_OPLU_10(x, weights, biases)
 cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
 optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
 
