@@ -53,8 +53,8 @@ def oplugrad(op, grad):
     odd = x[:,1::2]
     even_grad = grad[:,::2] # slicing gradients
     odd_grad = grad[:,1::2]
-    compare = tf.cast(even<odd,dtype=tf.float64)
-    compare_not = tf.cast(even>=odd, dtype=tf.float64)
+    compare = tf.cast(even<odd,dtype=tf.float32)
+    compare_not = tf.cast(even>=odd, dtype=tf.float32)
     # OPLU
     grad_even_new = odd_grad * compare + even_grad * compare_not
     grad_odd_new = odd_grad * compare_not + even_grad * compare
@@ -66,8 +66,8 @@ def tf_oplu(x, name='OPLU'):
             even = x[:,::2] #slicing into odd and even parts on the batch
             odd = x[:,1::2]
             # OPLU
-            compare = tf.cast(even<odd,dtype=tf.float64)
-            compare_not = tf.cast(even>=odd,dtype=tf.float64)
+            compare = tf.cast(even<odd,dtype=tf.float32)
+            compare_not = tf.cast(even>=odd,dtype=tf.float32)
             #def oplu(x,y): # trivial function  
             #    if x<y : # (x<y)==1
             #       return y, x 
@@ -98,8 +98,8 @@ def get_batch_train(idx):
     return X1[idx, :], T1[idx, :]
 
 # tf Graph input
-x = tf.placeholder('float64', [None, n_input])
-y = tf.placeholder('float64', [None, n_classes])
+x = tf.placeholder('float32', [None, n_input])
+y = tf.placeholder('float32', [None, n_classes])
 
 # Create model
 def mlp_OPLU(x, weights, biases):
@@ -188,35 +188,35 @@ def ort_initializer(shape, dtype=tf.float32):
       q = u if u.shape == flat_shape else v
       q = q.reshape(shape) #this needs to be corrected to float32
       #print('you have initialized one orthogonal matrix.')
-      return tf.constant(scale * q[:shape[0], :shape[1]], dtype=tf.float64)
+      return tf.constant(scale * q[:shape[0], :shape[1]], dtype=tf.float32)
   
 weights = {
-    'h1': tf.Variable(ort_initializer([n_input, n_hidden_1]), dtype=tf.float64),
-    'h2': tf.Variable(ort_initializer([n_hidden_1, n_hidden_2]), dtype=tf.float64),
-    'h3': tf.Variable(ort_initializer([n_hidden_2, n_hidden_3]), dtype=tf.float64),
-    'h4': tf.Variable(ort_initializer([n_hidden_3, n_hidden_4]), dtype=tf.float64),
-    'h5': tf.Variable(ort_initializer([n_hidden_4, n_hidden_5]), dtype=tf.float64),
-    'h6': tf.Variable(ort_initializer([n_hidden_5, n_hidden_6]), dtype=tf.float64),
-    'h7': tf.Variable(ort_initializer([n_hidden_6, n_hidden_7]), dtype=tf.float64),
-    'h8': tf.Variable(ort_initializer([n_hidden_7, n_hidden_8]), dtype=tf.float64),
-    'h9': tf.Variable(ort_initializer([n_hidden_8, n_hidden_9]), dtype=tf.float64),
-    'h10': tf.Variable(ort_initializer([n_hidden_9, n_hidden_10]), dtype=tf.float64),
-    'out': tf.Variable(ort_initializer([n_hidden_10, n_classes]), dtype=tf.float64)
+    'h1': tf.Variable(ort_initializer([n_input, n_hidden_1]), dtype=tf.float32),
+    'h2': tf.Variable(ort_initializer([n_hidden_1, n_hidden_2]), dtype=tf.float32),
+    'h3': tf.Variable(ort_initializer([n_hidden_2, n_hidden_3]), dtype=tf.float32),
+    'h4': tf.Variable(ort_initializer([n_hidden_3, n_hidden_4]), dtype=tf.float32),
+    'h5': tf.Variable(ort_initializer([n_hidden_4, n_hidden_5]), dtype=tf.float32),
+    'h6': tf.Variable(ort_initializer([n_hidden_5, n_hidden_6]), dtype=tf.float32),
+    'h7': tf.Variable(ort_initializer([n_hidden_6, n_hidden_7]), dtype=tf.float32),
+    'h8': tf.Variable(ort_initializer([n_hidden_7, n_hidden_8]), dtype=tf.float32),
+    'h9': tf.Variable(ort_initializer([n_hidden_8, n_hidden_9]), dtype=tf.float32),
+    'h10': tf.Variable(ort_initializer([n_hidden_9, n_hidden_10]), dtype=tf.float32),
+    'out': tf.Variable(ort_initializer([n_hidden_10, n_classes]), dtype=tf.float32)
 }
 
 # changed to 0.01 to avoid stucking at the coordinate center which is local minima
 biases = {
-    'b1': tf.Variable(0.01*tf.ones([n_hidden_1], dtype=tf.float64), dtype=tf.float64),
-    'b2': tf.Variable(0.01*tf.ones([n_hidden_2], dtype=tf.float64), dtype=tf.float64),
-    'b3': tf.Variable(0.01*tf.ones([n_hidden_3], dtype=tf.float64), dtype=tf.float64),
-    'b4': tf.Variable(0.01*tf.ones([n_hidden_4], dtype=tf.float64), dtype=tf.float64),
-    'b5': tf.Variable(0.01*tf.ones([n_hidden_5], dtype=tf.float64), dtype=tf.float64),
-    'b6': tf.Variable(0.01*tf.ones([n_hidden_6], dtype=tf.float64), dtype=tf.float64),
-    'b7': tf.Variable(0.01*tf.ones([n_hidden_7], dtype=tf.float64), dtype=tf.float64),
-    'b8': tf.Variable(0.01*tf.ones([n_hidden_8], dtype=tf.float64), dtype=tf.float64),
-    'b9': tf.Variable(0.01*tf.ones([n_hidden_9], dtype=tf.float64), dtype=tf.float64),
-    'b10': tf.Variable(0.01*tf.ones([n_hidden_10], dtype=tf.float64), dtype=tf.float64),
-    'out': tf.Variable(0.01*tf.ones([n_classes], dtype=tf.float64), dtype=tf.float64)
+    'b1': tf.Variable(0.01*tf.ones([n_hidden_1], dtype=tf.float32), dtype=tf.float32),
+    'b2': tf.Variable(0.01*tf.ones([n_hidden_2], dtype=tf.float32), dtype=tf.float32),
+    'b3': tf.Variable(0.01*tf.ones([n_hidden_3], dtype=tf.float32), dtype=tf.float32),
+    'b4': tf.Variable(0.01*tf.ones([n_hidden_4], dtype=tf.float32), dtype=tf.float32),
+    'b5': tf.Variable(0.01*tf.ones([n_hidden_5], dtype=tf.float32), dtype=tf.float32),
+    'b6': tf.Variable(0.01*tf.ones([n_hidden_6], dtype=tf.float32), dtype=tf.float32),
+    'b7': tf.Variable(0.01*tf.ones([n_hidden_7], dtype=tf.float32), dtype=tf.float32),
+    'b8': tf.Variable(0.01*tf.ones([n_hidden_8], dtype=tf.float32), dtype=tf.float32),
+    'b9': tf.Variable(0.01*tf.ones([n_hidden_9], dtype=tf.float32), dtype=tf.float32),
+    'b10': tf.Variable(0.01*tf.ones([n_hidden_10], dtype=tf.float32), dtype=tf.float32),
+    'out': tf.Variable(0.01*tf.ones([n_classes], dtype=tf.float32), dtype=tf.float32)
 }
 
 pred = mlp_OPLU(x, weights, biases)
