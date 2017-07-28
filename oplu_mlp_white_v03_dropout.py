@@ -9,7 +9,7 @@ from tensorflow.python.framework import ops
 
 # Parameters
 learning_rate = 0.06 # will be divided by 2 each 10 epochs:
-learning_rate_decrease_step = 10 #(epochs)
+learning_rate_decrease_step = 5 #(epochs)
 
 training_epochs = 200
 batch_size = 1000#32
@@ -40,6 +40,7 @@ n_input = X1.shape[1]
 n_classes = T1.shape[1]
 
 N_HIDDEN = 512#256
+dropout_neurons = 30 # neurons to be not affected by OPLU
 
 n_hidden_1 = N_HIDDEN
 n_hidden_2 = N_HIDDEN
@@ -61,18 +62,18 @@ def oplugrad(op, grad):
     odd = x[:,1::2]
     even_grad = grad[:,::2] # slicing gradients
     odd_grad = grad[:,1::2]
-    #compare = tf.cast(even<odd,dtype=tf.float64)
-    #compare_not = tf.cast(even>=odd, dtype=tf.float64)
+    #compare = tf.cast(even<odd,dtype=tf.float32)
+    #compare_not = tf.cast(even>=odd, dtype=tf.float32)
     
     # DROPOUT-------------
     
     # we apply dropout only for training where first dimension of the data equals batch_size
-    mask1 = tf.cond(tf.equal(tf.shape(x)[0],bsize), lambda:mask[:,::2], lambda:tf.constant(0,dtype=tf.float64)) # here we have ones
-    mask2 = tf.cond(tf.equal(tf.shape(x)[0],bsize), lambda:mask[:,1::2], lambda:tf.constant(1,dtype=tf.float64)) # here we have zeros
+    mask1 = tf.cond(tf.equal(tf.shape(x)[0],bsize), lambda:mask[:,::2], lambda:tf.constant(0,dtype=tf.float32)) # here we have ones
+    mask2 = tf.cond(tf.equal(tf.shape(x)[0],bsize), lambda:mask[:,1::2], lambda:tf.constant(1,dtype=tf.float32)) # here we have zeros
             
     #even = tf.Print(even, [tf.shape(mask)], message = 'debug: ')
-    compare = tf.cast((even<odd),dtype=tf.float64)  #if compare is 1, elements are permuted
-    compare_not = tf.cast((even>=odd),dtype=tf.float64) #if compare_not is 1 instead, elements are not permuted
+    compare = tf.cast((even<odd),dtype=tf.float32)  #if compare is 1, elements are permuted
+    compare_not = tf.cast((even>=odd),dtype=tf.float32) #if compare_not is 1 instead, elements are not permuted
     
     compare_not = compare_not*mask2 + mask1  #compare_not is set to always 1 here on the places defined by mask
     compare = compare*mask2  # compare is set to always 0 there on the places defined by mask1, which is 0 on even places
@@ -106,12 +107,12 @@ def tf_oplu(x, name='OPLU'):
             # DROPOUT-------------
             
             # we apply dropout only for training where first dimension of the data equals batch_size
-            mask1 = tf.cond(tf.equal(tf.shape(x)[0],bsize), lambda:mask[:,::2], lambda:tf.constant(0,dtype=tf.float64)) # all zeroes except affected places (=1)
-            mask2 = tf.cond(tf.equal(tf.shape(x)[0],bsize), lambda:mask[:,1::2], lambda:tf.constant(1,dtype=tf.float64)) # is all ones except affected places (=0)
+            mask1 = tf.cond(tf.equal(tf.shape(x)[0],bsize), lambda:mask[:,::2], lambda:tf.constant(0,dtype=tf.float32)) # all zeroes except affected places (=1)
+            mask2 = tf.cond(tf.equal(tf.shape(x)[0],bsize), lambda:mask[:,1::2], lambda:tf.constant(1,dtype=tf.float32)) # is all ones except affected places (=0)
                     
             #even = tf.Print(even, [tf.shape(mask)], message = 'debug: ')
-            compare = tf.cast((even<odd),dtype=tf.float64)  #if compare is 1, elements are permuted
-            compare_not = tf.cast((even>=odd),dtype=tf.float64) #if compare_not is 1 instead, elements are not permuted
+            compare = tf.cast((even<odd),dtype=tf.float32)  #if compare is 1, elements are permuted
+            compare_not = tf.cast((even>=odd),dtype=tf.float32) #if compare_not is 1 instead, elements are not permuted
             
             compare_not = compare_not*mask2 + mask1  #compare_not is set to always 1 here on the places defined by mask1
             compare = compare*mask2  # compare is set to always 0 there on the places defined by mask2
@@ -153,8 +154,8 @@ def get_batch_train(idx):
     return X1[idx, :], T1[idx, :]
 
 # tf Graph input
-x = tf.placeholder('float64', [None, n_input])
-y = tf.placeholder('float64', [None, n_classes])
+x = tf.placeholder('float32', [None, n_input])
+y = tf.placeholder('float32', [None, n_classes])
 
 
 
@@ -170,7 +171,7 @@ def compute_np_mask():
     indices = np.array(range(N_HIDDEN)) 
 
     # select 20 indices to be affected ...
-    indices_to_shuffle = 15
+    indices_to_shuffle = dropout_neurons
 
     to_be_affected = np.random.permutation(indices)[0:indices_to_shuffle]
 
@@ -192,7 +193,7 @@ def compute_np_mask():
     # populate over all batches
     res = np.tile(row_mask,(batch_size,1))
     
-    return res.astype(np.float64)
+    return res.astype(np.float32)
 
 
 
@@ -207,8 +208,8 @@ def compute_np_mask():
 
 
 
-np_mask = tf.placeholder('float64',[batch_size,N_HIDDEN]) # DROPOUT: compute new mask each batch-------------------------
-mask = tf.cast(np_mask,dtype=tf.float64) #compatibility. You can set identity operation here, just to have placeholder called, but tensorflow complains about format sometimes
+np_mask = tf.placeholder('float32',[batch_size,N_HIDDEN]) # DROPOUT: compute new mask each batch-------------------------
+mask = tf.cast(np_mask,dtype=tf.float32) #compatibility. You can set identity operation here, just to have placeholder called, but tensorflow complains about format sometimes
 #------------------------------
 
 
@@ -284,42 +285,42 @@ def mlp_OPLU_10(x, weights, biases):
 '''
 
 # orthogonal initialization https://stats.stackexchange.com/questions/228704/how-does-one-initialize-neural-networks-as-suggested-by-saxe-et-al-using-orthogo
-def ort_initializer(shape, dtype=tf.float64):
+def ort_initializer(shape, dtype=tf.float32):
       scale = 1.1
       flat_shape = (shape[0], np.prod(shape[1:]))
-      a = np.random.normal(0.1, 0.9, flat_shape)
+      a = np.random.normal(0, 1, flat_shape)
       u, _, v = np.linalg.svd(a, full_matrices=False)
       # pick the one with the correct shape
       q = u if u.shape == flat_shape else v
-      q = q.reshape(shape) #this needs to be corrected to float64
+      q = q.reshape(shape) #this needs to be corrected to float32
       #print('you have initialized one orthogonal matrix.')
-      return tf.constant(scale * q[:shape[0], :shape[1]], dtype=tf.float64)
+      return tf.constant(scale * q[:shape[0], :shape[1]], dtype=tf.float32)
 
 weights = {
-    'h1': tf.Variable(ort_initializer([n_input, n_hidden_1]), dtype=tf.float64),
-    'h2': tf.Variable(ort_initializer([n_hidden_1, n_hidden_2]), dtype=tf.float64),
-    'h3': tf.Variable(ort_initializer([n_hidden_2, n_hidden_3]), dtype=tf.float64),
-    'h4': tf.Variable(ort_initializer([n_hidden_3, n_hidden_4]), dtype=tf.float64),
-    'h5': tf.Variable(ort_initializer([n_hidden_4, n_hidden_5]), dtype=tf.float64),
-    'h6': tf.Variable(ort_initializer([n_hidden_5, n_hidden_6]), dtype=tf.float64),
-    'h7': tf.Variable(ort_initializer([n_hidden_6, n_hidden_7]), dtype=tf.float64),
-    'h8': tf.Variable(ort_initializer([n_hidden_7, n_hidden_8]), dtype=tf.float64),
-    'h9': tf.Variable(ort_initializer([n_hidden_8, n_hidden_9]), dtype=tf.float64),
-    'h10': tf.Variable(ort_initializer([n_hidden_9, n_hidden_10]), dtype=tf.float64),
-    'out': tf.Variable(ort_initializer([n_hidden_10, n_classes]), dtype=tf.float64)
+    'h1': tf.Variable(ort_initializer([n_input, n_hidden_1]), dtype=tf.float32),
+    'h2': tf.Variable(ort_initializer([n_hidden_1, n_hidden_2]), dtype=tf.float32),
+    'h3': tf.Variable(ort_initializer([n_hidden_2, n_hidden_3]), dtype=tf.float32),
+    'h4': tf.Variable(ort_initializer([n_hidden_3, n_hidden_4]), dtype=tf.float32),
+    'h5': tf.Variable(ort_initializer([n_hidden_4, n_hidden_5]), dtype=tf.float32),
+    'h6': tf.Variable(ort_initializer([n_hidden_5, n_hidden_6]), dtype=tf.float32),
+    'h7': tf.Variable(ort_initializer([n_hidden_6, n_hidden_7]), dtype=tf.float32),
+    'h8': tf.Variable(ort_initializer([n_hidden_7, n_hidden_8]), dtype=tf.float32),
+    'h9': tf.Variable(ort_initializer([n_hidden_8, n_hidden_9]), dtype=tf.float32),
+    'h10': tf.Variable(ort_initializer([n_hidden_9, n_hidden_10]), dtype=tf.float32),
+    'out': tf.Variable(ort_initializer([n_hidden_10, n_classes]), dtype=tf.float32)
 }
 biases = {
-    'b1': tf.Variable(tf.zeros([n_hidden_1], dtype=tf.float64), dtype=tf.float64),
-    'b2': tf.Variable(tf.zeros([n_hidden_2], dtype=tf.float64), dtype=tf.float64),
-    'b3': tf.Variable(tf.zeros([n_hidden_3], dtype=tf.float64), dtype=tf.float64),
-    'b4': tf.Variable(tf.zeros([n_hidden_4], dtype=tf.float64), dtype=tf.float64),
-    'b5': tf.Variable(tf.zeros([n_hidden_5], dtype=tf.float64), dtype=tf.float64),
-    'b6': tf.Variable(tf.zeros([n_hidden_6], dtype=tf.float64), dtype=tf.float64),
-    'b7': tf.Variable(tf.zeros([n_hidden_7], dtype=tf.float64), dtype=tf.float64),
-    'b8': tf.Variable(tf.zeros([n_hidden_8], dtype=tf.float64), dtype=tf.float64),
-    'b9': tf.Variable(tf.zeros([n_hidden_9], dtype=tf.float64), dtype=tf.float64),
-    'b10': tf.Variable(tf.zeros([n_hidden_10], dtype=tf.float64), dtype=tf.float64),
-    'out': tf.Variable(tf.zeros([n_classes], dtype=tf.float64), dtype=tf.float64)
+    'b1': tf.Variable(tf.zeros([n_hidden_1], dtype=tf.float32), dtype=tf.float32),
+    'b2': tf.Variable(tf.zeros([n_hidden_2], dtype=tf.float32), dtype=tf.float32),
+    'b3': tf.Variable(tf.zeros([n_hidden_3], dtype=tf.float32), dtype=tf.float32),
+    'b4': tf.Variable(tf.zeros([n_hidden_4], dtype=tf.float32), dtype=tf.float32),
+    'b5': tf.Variable(tf.zeros([n_hidden_5], dtype=tf.float32), dtype=tf.float32),
+    'b6': tf.Variable(tf.zeros([n_hidden_6], dtype=tf.float32), dtype=tf.float32),
+    'b7': tf.Variable(tf.zeros([n_hidden_7], dtype=tf.float32), dtype=tf.float32),
+    'b8': tf.Variable(tf.zeros([n_hidden_8], dtype=tf.float32), dtype=tf.float32),
+    'b9': tf.Variable(tf.zeros([n_hidden_9], dtype=tf.float32), dtype=tf.float32),
+    'b10': tf.Variable(tf.zeros([n_hidden_10], dtype=tf.float32), dtype=tf.float32),
+    'out': tf.Variable(tf.zeros([n_classes], dtype=tf.float32), dtype=tf.float32)
 }
 
 pred = mlp_OPLU(x, weights, biases)

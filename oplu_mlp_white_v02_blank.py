@@ -10,8 +10,9 @@ from tensorflow.python.framework import ops
 # Parameters
 learning_rate = 0.06 # will be divided by 2 each 10 epochs:
 learning_rate_decrease_step = 10 #(epochs)
+
 training_epochs = 20
-batch_size = 1000
+batch_size = 50
 display_step = 1
 
 # input whitened mnist
