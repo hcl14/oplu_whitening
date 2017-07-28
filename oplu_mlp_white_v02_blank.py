@@ -8,11 +8,11 @@ import tensorflow as tf
 from tensorflow.python.framework import ops
 
 # Parameters
-learning_rate = 0.06 # will be divided by 2 each 10 epochs:
+learning_rate = 0.01 # will be divided by 2 each 10 epochs:
 learning_rate_decrease_step = 10 #(epochs)
 
 training_epochs = 20
-batch_size = 50
+batch_size = 1000
 display_step = 1
 
 # input whitened mnist
@@ -46,6 +46,8 @@ n_hidden_8 = N_HIDDEN
 n_hidden_9 = N_HIDDEN
 n_hidden_10 = N_HIDDEN
 
+    
+
 @tf.RegisterGradient('OPLUGrad')
 def oplugrad(op, grad): 
     x = op.inputs[0]
@@ -61,6 +63,12 @@ def oplugrad(op, grad):
     grad_odd_new = odd_grad * compare_not + even_grad * compare
     # inteweave gradients back
     grad_new = combine_even_odd(grad_even_new,grad_odd_new)
+    
+    
+    #Display layer counter - already included for me by Tensorflow
+    # also add mean gradient
+    #grad_new = tf.Print(grad_new, [op.name, tf.reduce_mean(grad_new)], message = 'debug: ')
+    
     return grad_new
 
 def tf_oplu(x, name='OPLU'):
@@ -220,20 +228,26 @@ biases = {
     'out': tf.Variable(0.01*tf.ones([n_classes], dtype=tf.float32), dtype=tf.float32)
 }
 
+
 pred = mlp_OPLU(x, weights, biases)
 #pred = mlp_OPLU_10(x, weights, biases)
 cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
 optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
+
 
 init = tf.global_variables_initializer()
 
 correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, 'float'))
 
+        
+
+
+
 with tf.Session(config=tf.ConfigProto(
   intra_op_parallelism_threads=8)) as sess:
     sess.run(init)
-    
+        
     
     #### 
     print('check orthogonality of inner layer h2 at the begin')
