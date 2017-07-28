@@ -8,7 +8,9 @@ import tensorflow as tf
 from tensorflow.python.framework import ops
 
 # Parameters
-learning_rate = 0.01#0.001
+learning_rate = 0.06 # will be divided by 2 each 10 epochs:
+learning_rate_decrease_step = 10 #(epochs)
+
 training_epochs = 200
 batch_size = 1000#32
 display_step = 1
@@ -349,6 +351,9 @@ with tf.Session(config=tf.ConfigProto(
             batch_x, batch_y = get_batch_train(idx)
             _, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y, np_mask: compute_np_mask()}) # DROPOUT ADDED!
             avg_cost_train += c / nbatches
+            
+        if epoch % learning_rate_decrease_step == 0:
+            learning_rate = float(learning_rate)/2  #decrease learning rate each 10 epochs
 
         # Display logs per epoch step
         if epoch % display_step == 0:

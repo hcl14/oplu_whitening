@@ -8,8 +8,9 @@ import tensorflow as tf
 from tensorflow.python.framework import ops
 
 # Parameters
-learning_rate = 0.01
-training_epochs = 100
+learning_rate = 0.06 # will be divided by 2 each 10 epochs:
+learning_rate_decrease_step = 10 #(epochs)
+training_epochs = 20
 batch_size = 1000
 display_step = 1
 
@@ -147,17 +148,40 @@ def mlp_OPLU_10(x, weights, biases):
 
 # orthogonal initialization https://stats.stackexchange.com/questions/228704/how-does-one-initialize-neural-networks-as-suggested-by-saxe-et-al-using-orthogo
 def ort_initializer(shape, dtype=tf.float32):
-      scale = 1.1
+      
+      
+      #scale = 1.1 # old value
+      
+      
       flat_shape = (shape[0], np.prod(shape[1:]))
       
-      a = np.random.normal(0.1, 0.9, flat_shape)  # ordinary initialization
+      a = np.random.normal(0, 1, flat_shape)  # ordinary initialization
       
       
+      ## TYPE 1 - very bad results
       
-      #weight_range = np.sqrt(6)/np.sqrt(shape[0]*shape[1])   # good initialization, believed to be better that 1/sqrt(n) from CLT, but derived for tanh ans sigmoid
+      # used to be good initialization, believed to be better that 1/sqrt(n) from CLT, but derived for tanh ans sigmoid
+      
+      #weight_range = np.sqrt(6)/np.sqrt(shape[0]*shape[1])  
+      
+      #scale = weight_range # scale to that factor, see below     
+      
       #a = np.random.normal(-weight_range,weight_range,flat_shape)
       
-      # RELU initialization suggests N(0,0.01) https://www.reddit.com/r/MachineLearning/comments/29ctf7/how_to_initialize_rectifier_linear_units_relu/?st=j5nsbujw&sh=8a790358
+      # But we have orthogonalization below, so need to scale after
+      
+      
+      ## TYPE 2      
+      
+      # RELU initialization suggests N(0,0.01) instead https://www.reddit.com/r/MachineLearning/comments/29ctf7/how_to_initialize_rectifier_linear_units_relu/?st=j5nsbujw&sh=8a790358
+      
+      #Hinton tends to recommend sampling the weights from the unit normal distribution times a scaling constant (such as 1e-2 or 1e-3) selected via some parameter search. In the original dropout paper he also seems to do the bias units this way for some networks, and use a constant of 1.0 for other networks (see section F.5). 
+      
+      # However, with factor scale=0.01 and even 0.1 network does not train at all
+      
+      
+      # So we just do:
+      scale = 1.1
       
       u, _, v = np.linalg.svd(a, full_matrices=False)
       # pick the one with the correct shape
@@ -179,18 +203,20 @@ weights = {
     'h10': tf.Variable(ort_initializer([n_hidden_9, n_hidden_10]), dtype=tf.float64),
     'out': tf.Variable(ort_initializer([n_hidden_10, n_classes]), dtype=tf.float64)
 }
+
+# changed to 0.01 to avoid stucking at the coordinate center which is local minima
 biases = {
-    'b1': tf.Variable(tf.zeros([n_hidden_1], dtype=tf.float64), dtype=tf.float64),
-    'b2': tf.Variable(tf.zeros([n_hidden_2], dtype=tf.float64), dtype=tf.float64),
-    'b3': tf.Variable(tf.zeros([n_hidden_3], dtype=tf.float64), dtype=tf.float64),
-    'b4': tf.Variable(tf.zeros([n_hidden_4], dtype=tf.float64), dtype=tf.float64),
-    'b5': tf.Variable(tf.zeros([n_hidden_5], dtype=tf.float64), dtype=tf.float64),
-    'b6': tf.Variable(tf.zeros([n_hidden_6], dtype=tf.float64), dtype=tf.float64),
-    'b7': tf.Variable(tf.zeros([n_hidden_7], dtype=tf.float64), dtype=tf.float64),
-    'b8': tf.Variable(tf.zeros([n_hidden_8], dtype=tf.float64), dtype=tf.float64),
-    'b9': tf.Variable(tf.zeros([n_hidden_9], dtype=tf.float64), dtype=tf.float64),
-    'b10': tf.Variable(tf.zeros([n_hidden_10], dtype=tf.float64), dtype=tf.float64),
-    'out': tf.Variable(tf.zeros([n_classes], dtype=tf.float64), dtype=tf.float64)
+    'b1': tf.Variable(0.01*tf.ones([n_hidden_1], dtype=tf.float64), dtype=tf.float64),
+    'b2': tf.Variable(0.01*tf.ones([n_hidden_2], dtype=tf.float64), dtype=tf.float64),
+    'b3': tf.Variable(0.01*tf.ones([n_hidden_3], dtype=tf.float64), dtype=tf.float64),
+    'b4': tf.Variable(0.01*tf.ones([n_hidden_4], dtype=tf.float64), dtype=tf.float64),
+    'b5': tf.Variable(0.01*tf.ones([n_hidden_5], dtype=tf.float64), dtype=tf.float64),
+    'b6': tf.Variable(0.01*tf.ones([n_hidden_6], dtype=tf.float64), dtype=tf.float64),
+    'b7': tf.Variable(0.01*tf.ones([n_hidden_7], dtype=tf.float64), dtype=tf.float64),
+    'b8': tf.Variable(0.01*tf.ones([n_hidden_8], dtype=tf.float64), dtype=tf.float64),
+    'b9': tf.Variable(0.01*tf.ones([n_hidden_9], dtype=tf.float64), dtype=tf.float64),
+    'b10': tf.Variable(0.01*tf.ones([n_hidden_10], dtype=tf.float64), dtype=tf.float64),
+    'out': tf.Variable(0.01*tf.ones([n_classes], dtype=tf.float64), dtype=tf.float64)
 }
 
 pred = mlp_OPLU(x, weights, biases)
@@ -207,6 +233,20 @@ with tf.Session(config=tf.ConfigProto(
   intra_op_parallelism_threads=8)) as sess:
     sess.run(init)
     
+    
+    #### 
+    print('check orthogonality of inner layer h2 at the begin')
+    p = tf.matmul(weights['h2'], tf.transpose(weights['h2']))
+    idx = arrayindices[0:batch_size]
+    batch_x, batch_y = get_batch_train(idx)
+    
+    print(p.eval({x: batch_x, y: batch_y})) # just take last batch, do not generate anything
+    #print(p.eval({x: mnist.test.images, y: mnist.test.labels}))
+    ####
+    
+    
+    
+    
     # Training cycle
     for epoch in range(training_epochs):
         avg_cost_train = 0.
@@ -218,6 +258,9 @@ with tf.Session(config=tf.ConfigProto(
             batch_x, batch_y = get_batch_train(idx)
             _, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y})
             avg_cost_train += c / nbatches
+            
+        if epoch % learning_rate_decrease_step == 0:
+            learning_rate = float(learning_rate)/2  #decrease learning rate each 10 epochs
 
         # Display logs per epoch step
         if epoch % display_step == 0:
@@ -227,6 +270,19 @@ with tf.Session(config=tf.ConfigProto(
 
     print('Optimization Finished!')
 
+    #### 
+    print('check orthogonality of inner layer h2 at the end')
+    p = tf.matmul(weights['h2'], tf.transpose(weights['h2']))
+    
+    print(p.eval({x: batch_x, y: batch_y})) # just take last batch, do not generate anything
+    #print(p.eval({x: mnist.test.images, y: mnist.test.labels}))
+    ####
+    
+    
+    
+    
+    
+    
     sys.exit()
 
     p = tf.matmul(weights['h2'], tf.transpose(weights['h2']))
