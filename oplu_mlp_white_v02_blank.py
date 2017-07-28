@@ -149,7 +149,16 @@ def mlp_OPLU_10(x, weights, biases):
 def ort_initializer(shape, dtype=tf.float32):
       scale = 1.1
       flat_shape = (shape[0], np.prod(shape[1:]))
-      a = np.random.normal(0.1, 0.9, flat_shape)
+      
+      a = np.random.normal(0.1, 0.9, flat_shape)  # ordinary initialization
+      
+      
+      
+      #weight_range = np.sqrt(6)/np.sqrt(shape[0]*shape[1])   # good initialization, believed to be better that 1/sqrt(n) from CLT, but derived for tanh ans sigmoid
+      #a = np.random.normal(-weight_range,weight_range,flat_shape)
+      
+      # RELU initialization suggests N(0,0.01) https://www.reddit.com/r/MachineLearning/comments/29ctf7/how_to_initialize_rectifier_linear_units_relu/?st=j5nsbujw&sh=8a790358
+      
       u, _, v = np.linalg.svd(a, full_matrices=False)
       # pick the one with the correct shape
       q = u if u.shape == flat_shape else v

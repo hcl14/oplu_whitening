@@ -11,10 +11,12 @@ labels_train = loadMNISTLabels('train-labels-idx1-ubyte');
 images_test = loadMNISTImages('t10k-images-idx3-ubyte');
 labels_test = loadMNISTLabels('t10k-labels-idx1-ubyte');
 
-X1 = single(images_train)';
+%X1 = single(images_train)';
+X1 = images_train';
 X1 = X1 + normrnd(0,0.01,[size(X1,1),size(X1,2)]); %add noise
 
-X2 = single(images_test)';
+%X2 = single(images_test)';
+X2 = images_test';
 X2 = X2 + normrnd(0,0.01,[size(X2,1),size(X2,2)]); %add noise
 
 
@@ -59,7 +61,7 @@ end
  whos X1
  whos T1
  
- 
+ cormat = corr(X1);
  save('mnist_wh.mat','X1', 'T1','X2', 'T2');
  
  disp('Done!');
