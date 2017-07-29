@@ -7,6 +7,8 @@ import scipy.io as sio
 import tensorflow as tf
 from tensorflow.python.framework import ops
 
+import h5py #matlab v7.3 files
+
 # Parameters
 learning_rate = 0.01 # will be divided by 2 each 10 epochs:
 learning_rate_decrease_step = 10 #(epochs)
@@ -19,16 +21,34 @@ bsize = tf.constant(batch_size,dtype=tf.int32)
 
 # input whitened mnist
 #mat_contents =  sio.loadmat('matlab_mnist/mnist_blank.mat')
+
+'''
 mat_contents =  sio.loadmat('matlab_mnist/mnist_wh.mat')
 
 X1 = np.array(mat_contents['X1']) # (784, 60000)
 T1 = np.transpose(np.array(mat_contents['T1'])) # (1, 60000) # NOT ONE-HOT!
 X2 = np.array(mat_contents['X2']) # (784, 10000)
 T2 = np.transpose(np.array(mat_contents['T2'])) # (1, 10000) # NOT ONE-HOT!
+'''
+mat_contents =  h5py.File('matlab_mnist/affNIST.mat')
+
+
+X1 = np.array(mat_contents['all_images_train'],dtype=np.uint8) # (1600000,1600) UINT8
+T1 = np.array(mat_contents['all_labels_train'],dtype=np.float32) # (1600000, 10)
+X2 = np.array(mat_contents['all_images_val'],dtype=np.float32) # (10000, 1600) FLOAT32
+T2 = np.array(mat_contents['all_labels_val'],dtype=np.float32) # (10000, 10) 
+
+
+
 
 print('Shapes:')
+print('training:')
 print(X1.shape)
 print(T1.shape)
+print('testing:')
+print(X2.shape)
+print(T2.shape)
+
 print('---------')
 
 ntrain = X1.shape[0]
@@ -40,7 +60,7 @@ n_input = X1.shape[1]
 n_classes = T1.shape[1]
 
 N_HIDDEN = 512
-dropout_neurons = 512/5 # neurons to be not affected by OPLU
+dropout_neurons = N_HIDDEN/5 # neurons to be not affected by OPLU
 
 n_hidden_1 = N_HIDDEN
 n_hidden_2 = N_HIDDEN
@@ -214,8 +234,20 @@ def combine_even_odd(even, odd):
     res = tf.reshape(tf.concat([even[..., tf.newaxis], odd[..., tf.newaxis]], axis=-1), [tf.shape(even)[0], -1])
     return res
 
+
+
+
 def get_batch_train(idx):
-    return X1[idx, :], T1[idx, :]
+    batch_x = X1[idx, :] #uint8
+    batch_y = T1[idx, :]
+    
+    batch_x = np.array(batch_x,dtype=np.float32)/255.0  #float32
+    
+    return batch_x, batch_y
+
+
+
+
 
 # tf Graph input
 x = tf.placeholder('float32', [None, n_input])
@@ -292,10 +324,14 @@ def mlp_OPLU(x, weights, biases):
     layer_1 = tf_oplu_nodropout(layer_1)
     
     layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
-    layer_2 = tf_oplu(layer_2)
+    #layer_2 = tf_oplu(layer_2)
+    layer_2 = tf_oplu_nodropout(layer_2)
+    
     
     layer_3 = tf.add(tf.matmul(layer_2, weights['h3']), biases['b3'])
     layer_3 = tf_oplu_nodropout(layer_3)
+    
+    
     # Output layer with linear activation
     out_layer = tf.matmul(layer_3, weights['out']) + biases['out']
     
@@ -416,14 +452,18 @@ with tf.Session(config=tf.ConfigProto(
             avg_cost_train += c / nbatches
             
         if epoch % learning_rate_decrease_step == 0:
-            learning_rate = float(learning_rate)/1.2  #decrease learning rate each 10 epochs
+            learning_rate = float(learning_rate)/2.0  #decrease learning rate each 10 epochs
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
 
 
         # Display logs per epoch step
         if epoch % display_step == 0:
-            accuracy_train_val = (accuracy.eval({x: X1, y: T1, np_mask: compute_np_mask()})) * 100
-            accuracy_test_val = (accuracy.eval({x: X2, y: T2, np_mask: compute_np_mask()})) * 100
+            #accuracy_train_val = (accuracy.eval({x: X1, y: T1, np_mask: compute_np_mask()})) * 100 
+            #accuracy_test_val = (accuracy.eval({x: X2, y: T2, np_mask: compute_np_mask()})) * 100
+            with tf.device("/cpu:0"): # compute these on CPU
+                accuracy_train_val = (accuracy.eval({x: X1[0:10000,:], y: T1[0:10000,:]})) * 100   #numpy gives Memory Error here on a big augmented dataset
+                accuracy_test_val = (accuracy.eval({x: X2, y: T2})) * 100
+            
             
             print('Epoch: %d, cost_train = %1.9f, accuracy_train = %1.2f%%, accuracy_test = %1.2f%%' % (epoch + 1, avg_cost_train, accuracy_train_val, accuracy_test_val))
 
