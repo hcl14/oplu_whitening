@@ -238,23 +238,6 @@ def mlp_OPLU(x, weights, biases):
     return out_layer
 
 
-def mlp_OPLU_6(x, weights, biases):
-    # Hidden layer with RELU activation
-    layer_1 = tf.add(tf.matmul(x, weights['h1']), biases['b1'])
-    layer_1 = tf_oplu(layer_1)
-    # Hidden layer with RELU activation
-    layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
-    layer_2 = tf_oplu(layer_2)
-    layer_3 = tf.add(tf.matmul(layer_2, weights['h3']), biases['b3'])
-    layer_3 = tf_oplu(layer_3)
-    layer_4 = tf.add(tf.matmul(layer_3, weights['h4']), biases['b4'])
-    layer_4 = tf_oplu(layer_4)
-    layer_5 = tf.add(tf.matmul(layer_3, weights['h4']), biases['b4'])
-    layer_5 = tf_oplu(layer_5)    
-    
-    # Output layer with linear activation
-    out_layer = tf.matmul(layer_5, weights['out']) + biases['out']
-    return out_layer
 
 
 
