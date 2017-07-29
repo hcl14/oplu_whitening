@@ -9,10 +9,10 @@ from tensorflow.python.framework import ops
 
 # Parameters
 learning_rate = 0.01 # will be divided by 2 each 10 epochs:
-learning_rate_decrease_step = 5 #(epochs)
+learning_rate_decrease_step = 10 #(epochs)
 
-training_epochs = 200
-batch_size = 1000#32
+training_epochs = 100
+batch_size = 100
 display_step = 1
 
 bsize = tf.constant(batch_size,dtype=tf.int32)
@@ -39,8 +39,8 @@ arrayindices = range(ntrain)
 n_input = X1.shape[1]
 n_classes = T1.shape[1]
 
-N_HIDDEN = 724#512
-dropout_neurons = 30 # neurons to be not affected by OPLU
+N_HIDDEN = 512
+dropout_neurons = 512/5 # neurons to be not affected by OPLU
 
 n_hidden_1 = N_HIDDEN
 n_hidden_2 = N_HIDDEN
@@ -98,6 +98,41 @@ def oplugrad(op, grad):
 
 
 
+@tf.RegisterGradient('OPLUGrad_nodropout')
+def oplugrad(op, grad): 
+    x = op.inputs[0]
+    #starting in the same way forward oplu works
+    even = x[:,::2] #slicing into odd and even parts on the batch
+    odd = x[:,1::2]
+    even_grad = grad[:,::2] # slicing gradients
+    odd_grad = grad[:,1::2]
+    compare = tf.cast(even<odd,dtype=tf.float32)
+    compare_not = tf.cast(even>=odd, dtype=tf.float32)
+    
+    
+    
+    # OPLU
+    grad_even_new = odd_grad * compare + even_grad * compare_not
+    grad_odd_new = odd_grad * compare_not + even_grad * compare
+    # inteweave gradients back
+    grad_new = combine_even_odd(grad_even_new,grad_odd_new)
+    
+    #Display layer counter - already included for me by Tensorflow
+    #also add mean gradient
+    #grad_new = tf.Print(grad_new, [op.name, tf.reduce_mean(grad_new)], message = 'debug: ')
+    
+    
+    # Worse way: pythonic variable
+    #global var
+    #var = var-tf.constant(1)
+    #grad_new = tf.Print(grad_new, [var], message = 'debug: ')
+    
+    return grad_new
+
+
+
+
+
 def tf_oplu(x, name='OPLU'): 
     
             even = x[:,::2] #slicing into odd and even parts on the batch
@@ -141,6 +176,35 @@ def tf_oplu(x, name='OPLU'):
                 #y = tf.Print(y, [tf.shape(y)], message = 'debug: ')
                 # just return what forward layer computes                
                 return y
+
+
+
+def tf_oplu_nodropout(x, name='OPLU_nodropout'): 
+    
+            even = x[:,::2] #slicing into odd and even parts on the batch
+            odd = x[:,1::2]
+            # OPLU
+            
+            compare = tf.cast((even<odd),dtype=tf.float32)  #if compare is 1, elements are permuted
+            compare_not = tf.cast((even>=odd),dtype=tf.float32) #if compare_not is 1 instead, elements are not permuted
+            
+            even_new = odd * compare + even * compare_not
+            odd_new = odd * compare_not + even * compare
+            
+            
+            # combine into one
+            y = combine_even_odd(even_new,odd_new)
+            # https://stackoverflow.com/questions/43256517/how-to-register-a-custom-gradient-for-a-operation-composed-of-tf-operations
+            g = tf.get_default_graph()
+
+            with g.gradient_override_map({'Identity': 'OPLUGrad_nodropout'}):
+                y = tf.identity(y, name='oplu')
+                return y
+
+
+
+
+
 
 def combine_even_odd(even, odd):
     # slow
@@ -216,6 +280,8 @@ mask = tf.cast(np_mask,dtype=tf.float32) #compatibility. You can set identity op
 
 
 # Create model
+
+
 def mlp_OPLU(x, weights, biases):
     
     
@@ -223,88 +289,61 @@ def mlp_OPLU(x, weights, biases):
     
     # Hidden layer with RELU activation
     layer_1 = tf.add(tf.matmul(x, weights['h1']), biases['b1'])
-    layer_1 = tf_oplu(layer_1)
+    layer_1 = tf_oplu_nodropout(layer_1)
     
-    
-    # Hidden layer with RELU activation
     layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
     layer_2 = tf_oplu(layer_2)
+    
     layer_3 = tf.add(tf.matmul(layer_2, weights['h3']), biases['b3'])
-    layer_3 = tf_oplu(layer_3)
-    layer_4 = tf.add(tf.matmul(layer_3, weights['h4']), biases['b4'])
-    layer_4 = tf_oplu(layer_4)
+    layer_3 = tf_oplu_nodropout(layer_3)
     # Output layer with linear activation
-    out_layer = tf.matmul(layer_4, weights['out']) + biases['out']
+    out_layer = tf.matmul(layer_3, weights['out']) + biases['out']
+    
+    # Just getting paranoid about tensorflow not backpropagetiong properly
+    #layer3_with_dims_calculated = tf.reshape(layer_3,[-1,n_hidden_3]) # needed to avoid error with "None" dimension feeded to tf.layers.dense
+    #out_layer = tf.layers.dense(inputs=layer3_with_dims_calculated,units=n_classes,activation=None)
+    
+    #out_layer = tf.Print(out_layer,[biases['out']])
+    
     return out_layer
 
 
-def mlp_OPLU_6(x, weights, biases):
-    # Hidden layer with RELU activation
-    layer_1 = tf.add(tf.matmul(x, weights['h1']), biases['b1'])
-    layer_1 = tf_oplu(layer_1)
-    # Hidden layer with RELU activation
-    layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
-    layer_2 = tf_oplu(layer_2)
-    layer_3 = tf.add(tf.matmul(layer_2, weights['h3']), biases['b3'])
-    layer_3 = tf_oplu(layer_3)
-    layer_4 = tf.add(tf.matmul(layer_3, weights['h4']), biases['b4'])
-    layer_4 = tf_oplu(layer_4)
-    layer_5 = tf.add(tf.matmul(layer_3, weights['h4']), biases['b4'])
-    layer_5 = tf_oplu(layer_5)    
+def mlp_OPLU_7(x, weights, biases):
     
-    # Output layer with linear activation
-    out_layer = tf.matmul(layer_5, weights['out']) + biases['out']
-    return out_layer
-
-
-
-
-'''
-def mlp_OPLU2(x, weights, biases):
-# Hidden layer with RELU activation
     layer_1 = tf.add(tf.matmul(x, weights['h1']), biases['b1'])
-    layer_1 = tf_oplu(layer_1)
-    # Hidden layer with RELU activation
+    #Activation
+    layer_1 = tf_oplu_nodropout(layer_1)
     layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
-    layer_2 = tf_oplu(layer_2)
+    #Activation
+    layer_2 = tf_oplu_nodropout(layer_2)
     layer_3 = tf.add(tf.matmul(layer_2, weights['h3']), biases['b3'])
+    #Activation+Dropout
     layer_3 = tf_oplu(layer_3)
-    layer_4 = tf.add(tf.matmul(layer_3, weights['h4']), biases['b4'])
-    layer_4 = tf_oplu(layer_4)
-    # Output layer with linear activation
-    out_layer = tf.matmul(layer_4, weights['out']) + biases['out']
-    return out_layer
-
-
-def mlp_OPLU_10(x, weights, biases):
-    # Hidden layer with RELU activation
-    layer_1 = tf.add(tf.matmul(x, weights['h1']), biases['b1'])
-    layer_1 = tf_oplu(layer_1)
-    # Hidden layer with RELU activation
-    layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
-    layer_2 = tf_oplu(layer_2)
-    layer_3 = tf.add(tf.matmul(layer_2, weights['h3']), biases['b3'])
-    layer_3 = tf_oplu(layer_3)
-    layer_4 = tf.add(tf.matmul(layer_3, weights['h4']), biases['b4'])
-    layer_4 = tf_oplu(layer_4)
-    layer_5 = tf.add(tf.matmul(layer_4, weights['h5']), biases['b5'])
-    layer_5 = tf_oplu(layer_5)
-    layer_6 = tf.add(tf.matmul(layer_5, weights['h6']), biases['b6'])
+    layer_4 = tf.add(tf.matmul(layer_3, weights['h4']), biases['b4'])    
+    #Activation
+    layer_4 = tf_oplu_nodropout(layer_4)
+    #Activation
+    layer_5 = tf.add(tf.matmul(layer_4, weights['h5']), biases['b5']) 
+    layer_5 = tf_oplu_nodropout(layer_5)
+    #Activation+dropout
+    layer_6 = tf.add(tf.matmul(layer_5, weights['h6']), biases['b6']) 
     layer_6 = tf_oplu(layer_6)
-    layer_7 = tf.add(tf.matmul(layer_6, weights['h7']), biases['b7'])
-    layer_7 = tf_oplu(layer_7)
-    layer_8 = tf.add(tf.matmul(layer_7, weights['h8']), biases['b8'])
-    layer_8 = tf_oplu(layer_8)
-    layer_9 = tf.add(tf.matmul(layer_8, weights['h9']), biases['b9'])
-    layer_9 = tf_oplu(layer_9)
-    layer_10 = tf.add(tf.matmul(layer_9, weights['h10']), biases['b10'])
-    layer_10 = tf_oplu(layer_10)
-
+    
+    
     # Output layer with linear activation
-    out_layer = tf.matmul(layer_10, weights['out']) + biases['out']
+    out_layer = tf.matmul(layer_6, weights['out']) + biases['out']
+    
+    # Just getting paranoid about tensorflow not backpropagetiong properly
+    #layer6_with_dims_calculated = tf.reshape(layer_6,[-1,n_hidden_6]) # needed to avoid error with "None" dimension feeded to tf.layers.dense
+    #out_layer = tf.layers.dense(inputs=layer6_with_dims_calculated,units=n_classes,activation=None)
+    
+    
+    
+    #out_layer=tf.Print(out_layer,[layer_1])
+    
     return out_layer
 
-'''
+
 
 # orthogonal initialization https://stats.stackexchange.com/questions/228704/how-does-one-initialize-neural-networks-as-suggested-by-saxe-et-al-using-orthogo
 def ort_initializer(shape, dtype=tf.float32):
@@ -345,6 +384,7 @@ biases = {
     'out': tf.Variable(0.01*tf.ones([n_classes], dtype=tf.float32), dtype=tf.float32)
 }
 
+
 pred = mlp_OPLU(x, weights, biases)
 #pred = mlp_OPLU_10(x, weights, biases)
 cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
@@ -364,7 +404,7 @@ with tf.Session(config=tf.ConfigProto(
     for epoch in range(training_epochs):
         avg_cost_train = 0.
         random.shuffle(arrayindices)
-
+        
         # Loop over all batches
         for nb in range(nbatches):
             
@@ -376,7 +416,9 @@ with tf.Session(config=tf.ConfigProto(
             avg_cost_train += c / nbatches
             
         if epoch % learning_rate_decrease_step == 0:
-            learning_rate = float(learning_rate)/2  #decrease learning rate each 10 epochs
+            learning_rate = float(learning_rate)/1.2  #decrease learning rate each 10 epochs
+            optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
+
 
         # Display logs per epoch step
         if epoch % display_step == 0:

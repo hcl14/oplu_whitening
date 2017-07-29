@@ -33,7 +33,7 @@ n_input = X1.shape[1]
 n_classes = T1.shape[1]
 
 
-N_HIDDEN = 512#256
+N_HIDDEN = 724#512
 
 n_hidden_1 = N_HIDDEN
 n_hidden_2 = N_HIDDEN
@@ -46,7 +46,7 @@ n_hidden_8 = N_HIDDEN
 n_hidden_9 = N_HIDDEN
 n_hidden_10 = N_HIDDEN
 
-    
+#var = 5; # global pythonic variable to transfer debug information across functions. Use for debug
 
 @tf.RegisterGradient('OPLUGrad')
 def oplugrad(op, grad): 
@@ -65,9 +65,18 @@ def oplugrad(op, grad):
     grad_new = combine_even_odd(grad_even_new,grad_odd_new)
     
     
+    
     #Display layer counter - already included for me by Tensorflow
     # also add mean gradient
     #grad_new = tf.Print(grad_new, [op.name, tf.reduce_mean(grad_new)], message = 'debug: ')
+    
+    
+    # Worse way: pythonic variable
+    #global var
+    #var = var-tf.constant(1)
+    #grad_new = tf.Print(grad_new, [var], message = 'debug: ')
+    
+    
     
     return grad_new
 
@@ -125,6 +134,26 @@ def mlp_OPLU(x, weights, biases):
     # Output layer with linear activation
     out_layer = tf.matmul(layer_4, weights['out']) + biases['out']
     return out_layer
+
+
+def mlp_OPLU_6(x, weights, biases):
+    # Hidden layer with RELU activation
+    layer_1 = tf.add(tf.matmul(x, weights['h1']), biases['b1'])
+    layer_1 = tf_oplu(layer_1)
+    # Hidden layer with RELU activation
+    layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
+    layer_2 = tf_oplu(layer_2)
+    layer_3 = tf.add(tf.matmul(layer_2, weights['h3']), biases['b3'])
+    layer_3 = tf_oplu(layer_3)
+    layer_4 = tf.add(tf.matmul(layer_3, weights['h4']), biases['b4'])
+    layer_4 = tf_oplu(layer_4)
+    layer_5 = tf.add(tf.matmul(layer_3, weights['h4']), biases['b4'])
+    layer_5 = tf_oplu(layer_5)    
+    
+    # Output layer with linear activation
+    out_layer = tf.matmul(layer_5, weights['out']) + biases['out']
+    return out_layer
+
 
 
 def mlp_OPLU_10(x, weights, biases):
@@ -229,7 +258,7 @@ biases = {
 }
 
 
-pred = mlp_OPLU(x, weights, biases)
+pred = mlp_OPLU_6(x, weights, biases)
 #pred = mlp_OPLU_10(x, weights, biases)
 cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
 optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
@@ -276,6 +305,8 @@ with tf.Session(config=tf.ConfigProto(
             
         if epoch % learning_rate_decrease_step == 0:
             learning_rate = float(learning_rate)/2  #decrease learning rate each 10 epochs
+            optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
+
 
         # Display logs per epoch step
         if epoch % display_step == 0:
