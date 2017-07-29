@@ -119,7 +119,7 @@ def oplugrad(op, grad):
 
 
 @tf.RegisterGradient('OPLUGrad_nodropout')
-def oplugrad(op, grad): 
+def oplugrad_nodropout(op, grad): 
     x = op.inputs[0]
     #starting in the same way forward oplu works
     even = x[:,::2] #slicing into odd and even parts on the batch
