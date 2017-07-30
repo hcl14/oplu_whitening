@@ -10,7 +10,9 @@ from tensorflow.python.framework import ops
 import h5py #matlab v7.3 files
 
 # Parameters
-learning_rate = 0.01 # will be divided by 2 each 10 epochs:
+whitening = True  # if set to True, whitening matrix would be loaded and applied
+
+learning_rate = 0.005 # will be divided by 2 each 10 epochs:
 learning_rate_decrease_step = 10 #(epochs)
 
 training_epochs = 100
@@ -38,6 +40,23 @@ T1 = np.array(mat_contents['all_labels_train'],dtype=np.float32) # (1600000, 10)
 X2 = np.array(mat_contents['all_images_val'],dtype=np.float32) # (10000, 1600) FLOAT32
 T2 = np.array(mat_contents['all_labels_val'],dtype=np.float32) # (10000, 10) 
 
+# clear space
+mat_contents = None
+
+
+whitemat = None
+if whitening:
+    #whitemat_data = h5py.File('matlab_mnist/whitemat.mat') #HDF5 will not work there
+    whitemat_data = sio.loadmat('matlab_mnist/whitemat.mat')
+    whitemat = np.array(whitemat_data['whitemat'],dtype=np.float32)
+    whitemat = np.transpose(whitemat) #batch is batch_size x 1600, so the whitening matrix is multiplied transposed from right
+    #transfer to tensorlow
+    whitemat = tf.constant(whitemat,dtype=tf.float32) # only constant! otherwise tensorflow would think it is another weight matrix
+    print('Loaded whitening matrix:')
+    print(whitemat.shape)
+    print('---------')
+    #clear space
+    whitemat_data = None
 
 
 
@@ -243,6 +262,11 @@ def get_batch_train(idx):
     
     batch_x = np.array(batch_x,dtype=np.float32)/255.0  #float32
     
+    # Too consuming to do it in numpy!
+    #global whitening
+    #if whitening:  #multiply by whitening matrix
+    #    batch_x = batch_x.dot(whitemat)
+    
     return batch_x, batch_y
 
 
@@ -317,7 +341,9 @@ mask = tf.cast(np_mask,dtype=tf.float32) #compatibility. You can set identity op
 def mlp_OPLU(x, weights, biases):
     
     
-    
+    if whitening: #whitening batch
+        x = tf.matmul(x,whitemat,transpose_b=True)
+            
     
     # Hidden layer with RELU activation
     layer_1 = tf.add(tf.matmul(x, weights['h1']), biases['b1'])
@@ -448,6 +474,8 @@ with tf.Session(config=tf.ConfigProto(
             
             idx = arrayindices[nb*batch_size:(nb+1)*batch_size]
             batch_x, batch_y = get_batch_train(idx)
+            
+            
             _, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y, np_mask: compute_np_mask()}) # DROPOUT ADDED!
             avg_cost_train += c / nbatches
             
