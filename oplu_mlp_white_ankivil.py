@@ -12,7 +12,7 @@ import h5py #matlab v7.3 files
 # Parameters
 whitening = True  # if set to True, whitening matrix would be loaded and applied
 
-learning_rate = 0.005 # will be divided by 2 each 10 epochs:
+learning_rate = 0.0005 # will be divided by 2 each 10 epochs:
 learning_rate_decrease_step = 10 #(epochs)
 
 training_epochs = 100
@@ -158,7 +158,7 @@ def oplugrad_nodropout(op, grad):
     
     #Display layer counter - already included for me by Tensorflow
     #also add mean gradient
-    #grad_new = tf.Print(grad_new, [op.name, tf.reduce_mean(grad_new)], message = 'debug: ')
+    #grad_new = tf.Print(grad_new, [op.name, x, tf.shape(grad_new), tf.norm(grad_new)], message = 'debug: ')
     
     
     # Worse way: pythonic variable
@@ -343,6 +343,16 @@ def mlp_OPLU(x, weights, biases):
     
     if whitening: #whitening batch
         x = tf.matmul(x,whitemat,transpose_b=True)
+        
+    '''
+    x = tf.Print(x,[weights['h2']])
+    x = tf.Print(x,[weights['h3']])
+    x = tf.Print(x,[weights['h4']])
+    x = tf.Print(x,[weights['h5']])
+    x = tf.Print(x,[weights['h6']])
+    '''
+    
+    
             
     
     # Hidden layer with RELU activation
@@ -357,9 +367,19 @@ def mlp_OPLU(x, weights, biases):
     layer_3 = tf.add(tf.matmul(layer_2, weights['h3']), biases['b3'])
     layer_3 = tf_oplu_nodropout(layer_3)
     
+    layer_4 = tf.add(tf.matmul(layer_3, weights['h4']), biases['b4'])
+    layer_4 = tf_oplu_nodropout(layer_4)
+    
+    
+    layer_5 = tf.add(tf.matmul(layer_4, weights['h5']), biases['b5'])
+    layer_5 = tf_oplu_nodropout(layer_5)
+    
+    layer_6 = tf.add(tf.matmul(layer_5, weights['h6']), biases['b6'])
+    layer_6 = tf_oplu_nodropout(layer_6)
+    
     
     # Output layer with linear activation
-    out_layer = tf.matmul(layer_3, weights['out']) + biases['out']
+    out_layer = tf.matmul(layer_6, weights['out']) + biases['out']
     
     # Just getting paranoid about tensorflow not backpropagetiong properly
     #layer3_with_dims_calculated = tf.reshape(layer_3,[-1,n_hidden_3]) # needed to avoid error with "None" dimension feeded to tf.layers.dense
@@ -408,16 +428,33 @@ def mlp_OPLU_7(x, weights, biases):
 
 
 # orthogonal initialization https://stats.stackexchange.com/questions/228704/how-does-one-initialize-neural-networks-as-suggested-by-saxe-et-al-using-orthogo
+
+saved_shape=None
+
 def ort_initializer(shape, dtype=tf.float32):
-      scale = 1.1
-      flat_shape = (shape[0], np.prod(shape[1:]))
-      a = np.random.normal(0, 1, flat_shape)
-      u, _, v = np.linalg.svd(a, full_matrices=False)
-      # pick the one with the correct shape
-      q = u if u.shape == flat_shape else v
-      q = q.reshape(shape) #this needs to be corrected to float32
-      #print('you have initialized one orthogonal matrix.')
-      return tf.constant(scale * q[:shape[0], :shape[1]], dtype=tf.float32)
+    
+      # experimental: have internal layers initializaed with the same weights
+      global saved_shape, saved_weights
+      if shape==saved_shape:
+          print('returning saved weights')
+          return saved_weights      
+      else:
+    
+        scale = 1.0#1.1
+        flat_shape = (shape[0], np.prod(shape[1:]))
+        a = np.random.normal(0, 1, flat_shape)
+        u, _, v = np.linalg.svd(a, full_matrices=False)
+        # pick the one with the correct shape
+        q = u if u.shape == flat_shape else v
+        q = q.reshape(shape) #this needs to be corrected to float32
+        #print('you have initialized one orthogonal matrix.')
+        return tf.constant(scale * q[:shape[0], :shape[1]], dtype=tf.float32)
+
+saved_weights = ort_initializer([n_hidden_2, n_hidden_3])
+
+saved_shape = [n_hidden_2, n_hidden_3]
+
+
 
 weights = {
     'h1': tf.Variable(ort_initializer([n_input, n_hidden_1]), dtype=tf.float32),
@@ -432,6 +469,7 @@ weights = {
     'h10': tf.Variable(ort_initializer([n_hidden_9, n_hidden_10]), dtype=tf.float32),
     'out': tf.Variable(ort_initializer([n_hidden_10, n_classes]), dtype=tf.float32)
 }
+
 biases = {
     'b1': tf.Variable(0.01*tf.ones([n_hidden_1], dtype=tf.float32), dtype=tf.float32),
     'b2': tf.Variable(0.01*tf.ones([n_hidden_2], dtype=tf.float32), dtype=tf.float32),
