@@ -429,30 +429,30 @@ def mlp_OPLU_7(x, weights, biases):
 
 # orthogonal initialization https://stats.stackexchange.com/questions/228704/how-does-one-initialize-neural-networks-as-suggested-by-saxe-et-al-using-orthogo
 
-saved_shape=None
+#saved_shape=None
 
 def ort_initializer(shape, dtype=tf.float32):
     
       # experimental: have internal layers initializaed with the same weights
-      global saved_shape, saved_weights
-      if shape==saved_shape:
-          print('returning saved weights')
-          return saved_weights      
-      else:
-    
-        scale = 1.0#1.1
-        flat_shape = (shape[0], np.prod(shape[1:]))
-        a = np.random.normal(0, 1, flat_shape)
-        u, _, v = np.linalg.svd(a, full_matrices=False)
-        # pick the one with the correct shape
-        q = u if u.shape == flat_shape else v
-        q = q.reshape(shape) #this needs to be corrected to float32
-        #print('you have initialized one orthogonal matrix.')
-        return tf.constant(scale * q[:shape[0], :shape[1]], dtype=tf.float32)
+      #global saved_shape, saved_weights
+      #if shape==saved_shape:
+      #    print('returning saved weights')
+      #    return saved_weights      
+      #else:
+      
+      scale = 1.0#1.1
+      flat_shape = (shape[0], np.prod(shape[1:]))
+      a = np.random.normal(0, 1, flat_shape)
+      u, _, v = np.linalg.svd(a, full_matrices=False)
+      # pick the one with the correct shape
+      q = u if u.shape == flat_shape else v
+      q = q.reshape(shape) #this needs to be corrected to float32
+      #print('you have initialized one orthogonal matrix.')
+      return tf.constant(scale * q[:shape[0], :shape[1]], dtype=tf.float32)
 
-saved_weights = ort_initializer([n_hidden_2, n_hidden_3])
+#saved_weights = ort_initializer([n_hidden_2, n_hidden_3])
 
-saved_shape = [n_hidden_2, n_hidden_3]
+#saved_shape = [n_hidden_2, n_hidden_3]
 
 
 
