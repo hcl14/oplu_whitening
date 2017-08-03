@@ -9,13 +9,18 @@ from tensorflow.python.framework import ops
 
 import h5py #matlab v7.3 files
 
+
+import datumio.datagen as dtd
+
+
+
 # Parameters
 whitening = True  # if set to True, whitening matrix would be loaded and applied
 
 learning_rate = 0.0005 # will be divided by 2 each 10 epochs:
-learning_rate_decrease_step = 10 #(epochs)
+learning_rate_decrease_step = 5 #(epochs)
 
-training_epochs = 100
+training_epochs = 50
 batch_size = 100
 display_step = 1
 
@@ -59,7 +64,6 @@ if whitening:
     whitemat_data = None
 
 
-
 print('Shapes:')
 print('training:')
 print(X1.shape)
@@ -78,12 +82,12 @@ arrayindices = range(ntrain)
 n_input = X1.shape[1]
 n_classes = T1.shape[1]
 
-N_HIDDEN = 512
+N_HIDDEN = 64
 dropout_neurons = N_HIDDEN/5 # neurons to be not affected by OPLU
 
-n_hidden_1 = N_HIDDEN
-n_hidden_2 = N_HIDDEN
-n_hidden_3 = N_HIDDEN
+n_hidden_1 = 2048#N_HIDDEN
+n_hidden_2 = 1024#N_HIDDEN
+n_hidden_3 = 512#N_HIDDEN
 n_hidden_4 = N_HIDDEN
 n_hidden_5 = N_HIDDEN
 n_hidden_6 = N_HIDDEN
@@ -91,6 +95,35 @@ n_hidden_7 = N_HIDDEN
 n_hidden_8 = N_HIDDEN
 n_hidden_9 = N_HIDDEN
 n_hidden_10 = N_HIDDEN
+
+
+
+
+
+rng_aug_params = {'rotation_range': (-20, 20),
+                  'translation_range': (-4, 4),
+                  'do_flip_lr': False}
+
+'''
+X: iterable, ndarray
+        Dataset to generate batch from.
+        X.shape must be (dataset_length, height, width, channels)
+    y: iterable, ndarray, default=None
+        Corresponding labels to dataset. If label is None, get_batch will
+        only return minibatches of X. y.shape = (data, ) or
+        (data, one-hot-encoded)
+'''
+
+
+
+batch_generator = dtd.BatchGenerator(
+                     X1.reshape(-1, 40, 40, 1),
+                     y=T1, rng_aug_params=rng_aug_params)
+
+
+
+
+
 
 
 @tf.RegisterGradient('OPLUGrad')
@@ -257,10 +290,17 @@ def combine_even_odd(even, odd):
 
 
 def get_batch_train(idx):
-    batch_x = X1[idx, :] #uint8
-    batch_y = T1[idx, :]
+    #batch_x = X1[idx, :] #uint8
+    #batch_y = T1[idx, :]
     
-    batch_x = np.array(batch_x,dtype=np.float32)/255.0  #float32
+    batch = batch_generator.get_batch(batch_size=batch_size, shuffle=True)
+    
+    batch_x = np.array(batch[0],dtype=np.float32)/255.0  #float32
+    
+    batch_y = batch[1] 
+    
+    
+    #batch_x = np.array(batch_x,dtype=np.float32)/255.0  #float32
     
     # Too consuming to do it in numpy!
     #global whitening
@@ -358,28 +398,29 @@ def mlp_OPLU(x, weights, biases):
     # Hidden layer with RELU activation
     layer_1 = tf.add(tf.matmul(x, weights['h1']), biases['b1'])
     layer_1 = tf_oplu_nodropout(layer_1)
+    #layer_1 = tf.nn.relu(layer_1)
+    
     
     layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
     #layer_2 = tf_oplu(layer_2)
     layer_2 = tf_oplu_nodropout(layer_2)
+    #layer_2 = tf.nn.relu(layer_2)
+    
     
     
     layer_3 = tf.add(tf.matmul(layer_2, weights['h3']), biases['b3'])
     layer_3 = tf_oplu_nodropout(layer_3)
+    #layer_3 = tf.nn.relu(layer_3)
+    
     
     layer_4 = tf.add(tf.matmul(layer_3, weights['h4']), biases['b4'])
+    
     layer_4 = tf_oplu_nodropout(layer_4)
-    
-    
-    layer_5 = tf.add(tf.matmul(layer_4, weights['h5']), biases['b5'])
-    layer_5 = tf_oplu_nodropout(layer_5)
-    
-    layer_6 = tf.add(tf.matmul(layer_5, weights['h6']), biases['b6'])
-    layer_6 = tf_oplu_nodropout(layer_6)
-    
+    #layer_4 = tf.nn.relu(layer_4)
     
     # Output layer with linear activation
-    out_layer = tf.matmul(layer_6, weights['out']) + biases['out']
+    out_layer = tf.matmul(layer_4, weights['out']) + biases['out']
+    
     
     # Just getting paranoid about tensorflow not backpropagetiong properly
     #layer3_with_dims_calculated = tf.reshape(layer_3,[-1,n_hidden_3]) # needed to avoid error with "None" dimension feeded to tf.layers.dense
@@ -448,7 +489,14 @@ def ort_initializer(shape, dtype=tf.float32):
       q = u if u.shape == flat_shape else v
       q = q.reshape(shape) #this needs to be corrected to float32
       #print('you have initialized one orthogonal matrix.')
-      return tf.constant(scale * q[:shape[0], :shape[1]], dtype=tf.float32)
+      mat=tf.constant(scale * q[:shape[0], :shape[1]], dtype=tf.float32)
+      
+      i = tf.matmul(mat,mat,transpose_b=True)
+      
+      scale = 1.0/tf.sqrt(i[0,0])
+      
+      return scale*mat
+      
 
 #saved_weights = ort_initializer([n_hidden_2, n_hidden_3])
 
@@ -498,6 +546,16 @@ accuracy = tf.reduce_mean(tf.cast(correct_prediction, 'float'))
 with tf.Session(config=tf.ConfigProto(
   intra_op_parallelism_threads=8)) as sess:
     sess.run(init)
+    
+    
+    #### 
+    print('check orthogonality of inner layer h2 at start')
+    p = tf.matmul(weights['h2'], tf.transpose(weights['h2']))
+    
+    print(p.eval()) # just take last batch, do not generate anything
+    #print(p.eval({x: mnist.test.images, y: mnist.test.labels}))
+    ####
+   
         
         
     # Training cycle
@@ -506,12 +564,16 @@ with tf.Session(config=tf.ConfigProto(
         random.shuffle(arrayindices)
         
         # Loop over all batches
-        for nb in range(nbatches):
-            
+        #for nb in range(nbatches):
+        for batch in batch_generator.get_batch(batch_size=batch_size, shuffle=True):
+    
+            batch_x = np.array(batch[0].reshape(batch_size,1600),dtype=np.float32)/255.0  #float32
+    
+            batch_y = batch[1]
 
             
-            idx = arrayindices[nb*batch_size:(nb+1)*batch_size]
-            batch_x, batch_y = get_batch_train(idx)
+            #idx = arrayindices[nb*batch_size:(nb+1)*batch_size]
+            #batch_x, batch_y = get_batch_train(idx)
             
             
             _, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y, np_mask: compute_np_mask()}) # DROPOUT ADDED!
