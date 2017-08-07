@@ -10,17 +10,17 @@ from tensorflow.python.framework import ops
 import h5py #matlab v7.3 files
 
 
-import datumio.datagen as dtd
+#import datumio.datagen as dtd
 
 
 
 # Parameters
-whitening = True  # if set to True, whitening matrix would be loaded and applied
+whitening = False  # if set to True, whitening matrix would be loaded and applied
 
-learning_rate = 0.0005 # will be divided by 2 each 10 epochs:
-learning_rate_decrease_step = 5 #(epochs)
+learning_rate = 0.001 # will be divided by 2 each 10 epochs:
+learning_rate_decrease_step = 10 #(epochs)
 
-training_epochs = 50
+training_epochs = 1000
 batch_size = 100
 display_step = 1
 
@@ -28,7 +28,6 @@ bsize = tf.constant(batch_size,dtype=tf.int32)
 
 # input whitened mnist
 #mat_contents =  sio.loadmat('matlab_mnist/mnist_blank.mat')
-
 '''
 mat_contents =  sio.loadmat('matlab_mnist/mnist_wh.mat')
 
@@ -37,16 +36,47 @@ T1 = np.transpose(np.array(mat_contents['T1'])) # (1, 60000) # NOT ONE-HOT!
 X2 = np.array(mat_contents['X2']) # (784, 10000)
 T2 = np.transpose(np.array(mat_contents['T2'])) # (1, 10000) # NOT ONE-HOT!
 '''
+
+
+
+
 mat_contents =  h5py.File('matlab_mnist/affNIST.mat')
 
 
-X1 = np.array(mat_contents['all_images_train'],dtype=np.uint8) # (1600000,1600) UINT8
-T1 = np.array(mat_contents['all_labels_train'],dtype=np.float32) # (1600000, 10)
+#X1 = np.array(mat_contents['all_images_train'],dtype=np.uint8) # (1600000,1600) UINT8
+#X1 = np.array(X1, dtype=np.float32)/255.0
+#T1 = np.array(mat_contents['all_labels_train'],dtype=np.float32) # (1600000, 10)
 X2 = np.array(mat_contents['all_images_val'],dtype=np.float32) # (10000, 1600) FLOAT32
 T2 = np.array(mat_contents['all_labels_val'],dtype=np.float32) # (10000, 10) 
 
+#X2=X1
+#T2=T1
+
 # clear space
 mat_contents = None
+
+
+
+X1,T1 = None,None
+
+def load_epoch(epoch):
+    
+    if epoch>=50:
+        epoch=epoch%50
+    
+    mat_contents = h5py.File('augdata/augmented'+str(epoch)+'.h5')
+    
+    #load new data
+    
+    global X1,T1
+    
+    X1 = np.array(mat_contents['all_images_train'],dtype=np.float32) # (1600000,1600) #already in Float32 from data augmenter!
+    T1 = np.array(mat_contents['all_labels_train'],dtype=np.float32) # (1600000, 10)
+    
+    # clear space
+    mat_contents = None
+
+load_epoch(0)
 
 
 whitemat = None
@@ -116,9 +146,9 @@ X: iterable, ndarray
 
 
 
-batch_generator = dtd.BatchGenerator(
-                     X1.reshape(-1, 40, 40, 1),
-                     y=T1, rng_aug_params=rng_aug_params)
+#batch_generator = dtd.BatchGenerator(
+#                     X1.reshape(-1, 40, 40, 1),
+#                     y=T1, rng_aug_params=rng_aug_params)
 
 
 
@@ -290,14 +320,14 @@ def combine_even_odd(even, odd):
 
 
 def get_batch_train(idx):
-    #batch_x = X1[idx, :] #uint8
-    #batch_y = T1[idx, :]
+    batch_x = X1[idx, :] #uint8
+    batch_y = T1[idx, :]
     
-    batch = batch_generator.get_batch(batch_size=batch_size, shuffle=True)
+    #batch = batch_generator.get_batch(batch_size=batch_size, shuffle=True)
     
-    batch_x = np.array(batch[0],dtype=np.float32)/255.0  #float32
+    #batch_x = np.array(batch[0],dtype=np.float32)/255.0  #float32
     
-    batch_y = batch[1] 
+    #batch_y = batch[1] 
     
     
     #batch_x = np.array(batch_x,dtype=np.float32)/255.0  #float32
@@ -402,7 +432,6 @@ def mlp_OPLU(x, weights, biases):
     
     
     layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
-    #layer_2 = tf_oplu(layer_2)
     layer_2 = tf_oplu_nodropout(layer_2)
     #layer_2 = tf.nn.relu(layer_2)
     
@@ -537,6 +566,7 @@ pred = mlp_OPLU(x, weights, biases)
 #pred = mlp_OPLU_10(x, weights, biases)
 cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
 optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
+        
 
 init = tf.global_variables_initializer()
 
@@ -560,28 +590,31 @@ with tf.Session(config=tf.ConfigProto(
         
     # Training cycle
     for epoch in range(training_epochs):
+        
+        load_epoch(epoch)
+                
         avg_cost_train = 0.
         random.shuffle(arrayindices)
         
         # Loop over all batches
-        #for nb in range(nbatches):
-        for batch in batch_generator.get_batch(batch_size=batch_size, shuffle=True):
+        for nb in range(nbatches):
+        #for batch in batch_generator.get_batch(batch_size=batch_size, shuffle=True):
     
-            batch_x = np.array(batch[0].reshape(batch_size,1600),dtype=np.float32)/255.0  #float32
+            #batch_x = np.array(batch[0].reshape(batch_size,1600),dtype=np.float32)/255.0  #float32
     
-            batch_y = batch[1]
+            #batch_y = batch[1]
 
             
-            #idx = arrayindices[nb*batch_size:(nb+1)*batch_size]
-            #batch_x, batch_y = get_batch_train(idx)
+            idx = arrayindices[nb*batch_size:(nb+1)*batch_size]
+            batch_x, batch_y = get_batch_train(idx)
             
             
             _, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y, np_mask: compute_np_mask()}) # DROPOUT ADDED!
             avg_cost_train += c / nbatches
             
         if epoch % learning_rate_decrease_step == 0:
-            learning_rate = float(learning_rate)/2.0  #decrease learning rate each 10 epochs
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
+            learning_rate = float(learning_rate)/4.0  #decrease learning rate each 10 epochs
+            #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
 
 
         # Display logs per epoch step
@@ -590,6 +623,7 @@ with tf.Session(config=tf.ConfigProto(
             #accuracy_test_val = (accuracy.eval({x: X2, y: T2, np_mask: compute_np_mask()})) * 100
             with tf.device("/cpu:0"): # compute these on CPU
                 accuracy_train_val = (accuracy.eval({x: X1[0:10000,:], y: T1[0:10000,:]})) * 100   #numpy gives Memory Error here on a big augmented dataset
+                #accuracy_train_val = (accuracy.eval({x: X1, y: T1})) * 100   #numpy gives Memory Error here on a big augmented dataset                
                 accuracy_test_val = (accuracy.eval({x: X2, y: T2})) * 100
             
             
@@ -601,7 +635,7 @@ with tf.Session(config=tf.ConfigProto(
     print('check orthogonality of inner layer h2 at the end')
     p = tf.matmul(weights['h2'], tf.transpose(weights['h2']))
     
-    print(p.eval({x: batch_x, y: batch_y})) # just take last batch, do not generate anything
+    print(p.eval()) # just take last batch, do not generate anything
     #print(p.eval({x: mnist.test.images, y: mnist.test.labels}))
     ####
     

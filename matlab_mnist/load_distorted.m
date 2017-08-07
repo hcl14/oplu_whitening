@@ -12,21 +12,22 @@ clear; % in case we are running the script second time
 %%%% Load training data
 
 %create variables
-load('training_batches/1.mat') % load the affNIST data variable
+%load('training_batches/1.mat') % load the affNIST data variable
+load('centered/training.mat') % load the MNIST data variable
 
 all_images_train = affNISTdata.image;
 all_labels_train = affNISTdata.label_one_of_n;
 
 %loop all files
-for i = 2:32 
+%for i = 2:32 
     
-    load(strcat('training_batches/',int2str(i),'.mat')) % load new affNIST data variable
+%    load(strcat('training_batches/',int2str(i),'.mat')) % load new affNIST data variable
     
-    all_images_train = [all_images_train,affNISTdata.image];
-    all_labels_train = [all_labels_train,affNISTdata.label_one_of_n];
+%    all_images_train = [all_images_train,affNISTdata.image];
+%    all_labels_train = [all_labels_train,affNISTdata.label_one_of_n];
     
     
-end
+%end
 
 
 %%%%% Load validation data
@@ -110,4 +111,4 @@ whitemat = diag(1./sqrt(svect(1:k) + epsilon)) * U(:,1:k)';
 %%----------------------------------
 
 % save whitening matrix
-save('whitemat.mat','whitemat');
+%save('whitemat.mat','whitemat');
