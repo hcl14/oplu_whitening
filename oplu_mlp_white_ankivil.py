@@ -18,7 +18,8 @@ import h5py #matlab v7.3 files
 whitening = False  # if set to True, whitening matrix would be loaded and applied
 
 learning_rate = 0.001 # will be divided by 2 each 10 epochs:
-learning_rate_decrease_step = 10 #(epochs)
+#learning_rate_decrease_step = 10 #(epochs)
+learning_rate_decay = 0.95
 
 training_epochs = 1000
 batch_size = 100
@@ -612,9 +613,10 @@ with tf.Session(config=tf.ConfigProto(
             _, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y, np_mask: compute_np_mask()}) # DROPOUT ADDED!
             avg_cost_train += c / nbatches
             
-        if epoch % learning_rate_decrease_step == 0:
-            learning_rate = float(learning_rate)/4.0  #decrease learning rate each 10 epochs
+        #if epoch % learning_rate_decrease_step == 0:
+        #    learning_rate = float(learning_rate)/4.0  #decrease learning rate each 10 epochs
             #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
+        learning_rate = learning_rate*learning_rate_decay
 
 
         # Display logs per epoch step
