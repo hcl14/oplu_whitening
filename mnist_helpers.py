@@ -1,4 +1,4 @@
-import cv2
+#import cv2
 import numpy
 import math
 
@@ -248,8 +248,8 @@ def elastic_transform(image, kernel_dim=13, sigma=6, alpha=36, negated=False):
     """
     
     # convert the image to single channel if it is multi channel one
-    if image.ndim == 3:
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    #if image.ndim == 3:
+    #    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # check if the image is a negated one
     if not negated:

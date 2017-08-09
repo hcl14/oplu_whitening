@@ -14,7 +14,6 @@ import datumio.datagen as dtd
 
 # elastic distortions
 from mnist_helpers import *
-import cv2
 
 
 from multiprocessing import Pool, Process
