@@ -16,6 +16,7 @@ import datumio.datagen as dtd
 from mnist_helpers import *
 
 
+
 from multiprocessing import Pool, Process
 
 
@@ -40,14 +41,14 @@ def distort(image):
 
      # get the transformed image
      distorted_image = elastic_transform(image1, kernel_dim=15,
-                                    alpha=36,
-                                    sigma=6)
+                                    alpha=20,
+                                    sigma=8)
      
      return distorted_image.ravel()
 
 
 
-epochs = 50
+epochs =230
 
 
 # load matlab
@@ -66,6 +67,10 @@ batch_size=100#X1.shape[0]
 rng_aug_params = {'rotation_range': (-20, 20),
                   'translation_range': (-4, 4),
                   'do_flip_lr': False}
+
+#rng_aug_params = {'rotation_range': (-5, 5),
+#                  'translation_range': (-4, 4),
+#                  'do_flip_lr': False}
 
 
 
@@ -90,22 +95,39 @@ batch_generator = dtd.BatchGenerator(
 
 def distort_func(batch):
     
+    batchx=batch[0]
+    batchy=batch[1]
     
     # add distortion
-    for i in range(batch.shape[0]):                
-        batch[i,:] = distort(batch[i,:])
+    for i in range(batchx.shape[0]):                
+        batchx[i,:] = distort(batchx[i,:])
         
-    return batch
+    return batchx, batchy
         
 
 #https://stackoverflow.com/questions/29857498/how-to-apply-a-function-to-a-2d-numpy-array-with-multiprocessing
 pool = Pool(4)
 
-def parallel(batch):
-    M = batch.shape[0]
-    N = batch.shape[1]
-    results = pool.map(distort_func, (batch[0:batch.shape[0]/4,:],batch[batch.shape[0]/4 : batch.shape[0]/2,:],batch[batch.shape[0]/2 : 3*batch.shape[0]/4,:],batch[3*batch.shape[0]/4 : batch.shape[0],:]))
-    return np.array(results).reshape(M, N)
+def parallel(batchx,batchy):
+    M = batchx.shape[0]
+    N = batchx.shape[1]
+    r = pool.map(distort_func, (
+		(batchx[0:batchx.shape[0]/4,:],batchy[0:batchy.shape[0]/4,:]),
+		(batchx[batchx.shape[0]/4 : batchx.shape[0]/2,:],batchy[batchy.shape[0]/4 : batchy.shape[0]/2,:]),
+		(batchx[batchx.shape[0]/2 : 3*batchx.shape[0]/4,:],batchy[batchy.shape[0]/2 : 3*batchy.shape[0]/4,:]),
+		(batchx[3*batchx.shape[0]/4 : batchx.shape[0],:],batchy[3*batchy.shape[0]/4 : batchy.shape[0],:])
+		)
+		)
+    #we don't know the sequence of results returned!
+
+    #return np.array(results).reshape(M, N)
+    new_bx = r[0][0]
+    new_by = r[0][1]
+    for i in range(1,4):
+	new_bx=np.concatenate((new_bx,r[i][0]),axis=0)
+	new_by=np.concatenate((new_by,r[i][1]),axis=0)
+
+    return new_bx, new_by
 
 
 
@@ -126,9 +148,16 @@ for epoch in range(epochs):
         for batch in batch_generator.get_batch(batch_size=batch_size, shuffle=True):
             
             count+=1
+
+	    batch_x=batch[0].reshape(batch_size,1600)
+	    batch_y = batch[1]
+            batch_x,batch_y = parallel(batch_x,batch_y)#distort_func((batch_x,batch_y))
+
+	    batch_x =  batch_x.astype(np.float32)/255.0
+
     
-            batch_x = np.array(batch[0].reshape(batch_size,1600),dtype=np.float32)/255.0  #float32    
-            batch_y = batch[1]
+            #batch_x = np.array(batch[0].reshape(batch_size,1600),dtype=np.float32)#/255.0  #float32    
+            #batch_y = batch[1]
             #batch_x = X1
             #batch_y = T1
             
@@ -136,7 +165,7 @@ for epoch in range(epochs):
             
             #add distortion in parallel
             
-            batch_x = parallel(batch_x)
+            #batch_x,batch_y = distort_func((batch_x,batch_y))  #parallel(batch_x,batch_y)
             
             print('batch '+str(count)+' processed')
             

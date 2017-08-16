@@ -17,9 +17,9 @@ import h5py #matlab v7.3 files
 # Parameters
 whitening = False  # if set to True, whitening matrix would be loaded and applied
 
-learning_rate = 0.001 # will be divided by 2 each 10 epochs:
+learning_rate = 0.0008 # we need this amount for data with elastic distortions
 #learning_rate_decrease_step = 10 #(epochs)
-learning_rate_decay = 0.95
+learning_rate_decay = 0.98 #0.99
 
 training_epochs = 1000
 batch_size = 100
@@ -62,10 +62,10 @@ X1,T1 = None,None
 
 def load_epoch(epoch):
     
-    if epoch>=50:
-        epoch=epoch%50
-    
-    mat_contents = h5py.File('augdata/augmented'+str(epoch)+'.h5')
+    if epoch>=32:
+        epoch=epoch%32
+  
+    mat_contents = h5py.File('/media/deep/80GB_MNIST/mnist_augdata/augdata/augmented'+str(epoch)+'.h5')
     
     #load new data
     
@@ -113,14 +113,14 @@ arrayindices = range(ntrain)
 n_input = X1.shape[1]
 n_classes = T1.shape[1]
 
-N_HIDDEN = 64
-dropout_neurons = N_HIDDEN/5 # neurons to be not affected by OPLU
+N_HIDDEN = 64#2048 #for dropout we need to have the same value
+dropout_neurons = N_HIDDEN/3 # neurons to be not affected by OPLU
 
-n_hidden_1 = 2048#N_HIDDEN
-n_hidden_2 = 1024#N_HIDDEN
-n_hidden_3 = 512#N_HIDDEN
-n_hidden_4 = N_HIDDEN
-n_hidden_5 = N_HIDDEN
+n_hidden_1 = 6144#N_HIDDEN
+n_hidden_2 = 4096#N_HIDDEN
+n_hidden_3 = 2048#N_HIDDEN
+n_hidden_4 = 1024#N_HIDDEN
+n_hidden_5 = 512#N_HIDDEN
 n_hidden_6 = N_HIDDEN
 n_hidden_7 = N_HIDDEN
 n_hidden_8 = N_HIDDEN
@@ -383,6 +383,8 @@ def compute_np_mask():
     
     # populate over all batches
     res = np.tile(row_mask,(batch_size,1))
+
+	
     
     return res.astype(np.float32)
 
@@ -447,9 +449,17 @@ def mlp_OPLU(x, weights, biases):
     
     layer_4 = tf_oplu_nodropout(layer_4)
     #layer_4 = tf.nn.relu(layer_4)
+    layer_5 = tf.add(tf.matmul(layer_4, weights['h5']), biases['b5'])
+    
+    layer_5 = tf_oplu_nodropout(layer_5)
+
+    layer_6 = tf.add(tf.matmul(layer_5, weights['h6']), biases['b6'])
+    
+    layer_6 = tf_oplu_nodropout(layer_6)
+
     
     # Output layer with linear activation
-    out_layer = tf.matmul(layer_4, weights['out']) + biases['out']
+    out_layer = tf.matmul(layer_6, weights['out']) + biases['out']
     
     
     # Just getting paranoid about tensorflow not backpropagetiong properly
@@ -471,7 +481,7 @@ def mlp_OPLU_7(x, weights, biases):
     layer_2 = tf_oplu_nodropout(layer_2)
     layer_3 = tf.add(tf.matmul(layer_2, weights['h3']), biases['b3'])
     #Activation+Dropout
-    layer_3 = tf_oplu(layer_3)
+    layer_3 = tf_oplu_nodropout(layer_3)
     layer_4 = tf.add(tf.matmul(layer_3, weights['h4']), biases['b4'])    
     #Activation
     layer_4 = tf_oplu_nodropout(layer_4)
@@ -480,11 +490,20 @@ def mlp_OPLU_7(x, weights, biases):
     layer_5 = tf_oplu_nodropout(layer_5)
     #Activation+dropout
     layer_6 = tf.add(tf.matmul(layer_5, weights['h6']), biases['b6']) 
-    layer_6 = tf_oplu(layer_6)
+    layer_6 = tf_oplu_nodropout(layer_6)
+    
+    layer_7 = tf.add(tf.matmul(layer_6, weights['h7']), biases['b7']) 
+    layer_7 = tf_oplu_nodropout(layer_7)
+
+    layer_8 = tf.add(tf.matmul(layer_7, weights['h8']), biases['b8']) 
+    layer_8 = tf_oplu_nodropout(layer_8)
+
+    layer_9 = tf.add(tf.matmul(layer_8, weights['h9']), biases['b9']) 
+    layer_9 = tf_oplu_nodropout(layer_9)
     
     
     # Output layer with linear activation
-    out_layer = tf.matmul(layer_6, weights['out']) + biases['out']
+    out_layer = tf.matmul(layer_9, weights['out']) + biases['out']
     
     # Just getting paranoid about tensorflow not backpropagetiong properly
     #layer6_with_dims_calculated = tf.reshape(layer_6,[-1,n_hidden_6]) # needed to avoid error with "None" dimension feeded to tf.layers.dense
@@ -599,13 +618,7 @@ with tf.Session(config=tf.ConfigProto(
         
         # Loop over all batches
         for nb in range(nbatches):
-        #for batch in batch_generator.get_batch(batch_size=batch_size, shuffle=True):
-    
-            #batch_x = np.array(batch[0].reshape(batch_size,1600),dtype=np.float32)/255.0  #float32
-    
-            #batch_y = batch[1]
-
-            
+                 
             idx = arrayindices[nb*batch_size:(nb+1)*batch_size]
             batch_x, batch_y = get_batch_train(idx)
             
@@ -616,17 +629,17 @@ with tf.Session(config=tf.ConfigProto(
         #if epoch % learning_rate_decrease_step == 0:
         #    learning_rate = float(learning_rate)/4.0  #decrease learning rate each 10 epochs
             #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
-        learning_rate = learning_rate*learning_rate_decay
-
+	learning_rate = learning_rate*learning_rate_decay
 
         # Display logs per epoch step
         if epoch % display_step == 0:
             #accuracy_train_val = (accuracy.eval({x: X1, y: T1, np_mask: compute_np_mask()})) * 100 
             #accuracy_test_val = (accuracy.eval({x: X2, y: T2, np_mask: compute_np_mask()})) * 100
             with tf.device("/cpu:0"): # compute these on CPU
-                accuracy_train_val = (accuracy.eval({x: X1[0:10000,:], y: T1[0:10000,:]})) * 100   #numpy gives Memory Error here on a big augmented dataset
-                #accuracy_train_val = (accuracy.eval({x: X1, y: T1})) * 100   #numpy gives Memory Error here on a big augmented dataset                
-                accuracy_test_val = (accuracy.eval({x: X2, y: T2})) * 100
+                #accuracy_train_val = (accuracy.eval({x: X1[0:10000,:], y: T1[0:10000,:], np_mask: compute_np_mask()})) * 100   
+                accuracy_train_val = (accuracy.eval({x: X1, y: T1})) * 100   #numpy gives Memory Error here on a big augmented dataset                
+                #accuracy_test_val = (accuracy.eval({x: X2, y: T2, np_mask: compute_np_mask()})) * 100
+		accuracy_test_val = (accuracy.eval({x: X2, y: T2})) * 100
             
             
             print('Epoch: %d, cost_train = %1.9f, accuracy_train = %1.2f%%, accuracy_test = %1.2f%%' % (epoch + 1, avg_cost_train, accuracy_train_val, accuracy_test_val))
