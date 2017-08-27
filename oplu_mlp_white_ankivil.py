@@ -15,9 +15,9 @@ import h5py #matlab v7.3 files
 
 
 # Parameters
-whitening = False  # if set to True, whitening matrix would be loaded and applied
+whitening = True  # if set to True, whitening matrix would be loaded and applied
 
-learning_rate = 0.0008 # we need this amount for data with elastic distortions
+learning_rate = 0.005 # we need this amount for data with elastic distortions
 #learning_rate_decrease_step = 10 #(epochs)
 learning_rate_decay = 0.98 #0.99
 
@@ -41,43 +41,20 @@ T2 = np.transpose(np.array(mat_contents['T2'])) # (1, 10000) # NOT ONE-HOT!
 
 
 
-mat_contents =  h5py.File('matlab_mnist/affNIST.mat')
-
-
-#X1 = np.array(mat_contents['all_images_train'],dtype=np.uint8) # (1600000,1600) UINT8
-#X1 = np.array(X1, dtype=np.float32)/255.0
-#T1 = np.array(mat_contents['all_labels_train'],dtype=np.float32) # (1600000, 10)
-X2 = np.array(mat_contents['all_images_val'],dtype=np.float32) # (10000, 1600) FLOAT32
-T2 = np.array(mat_contents['all_labels_val'],dtype=np.float32) # (10000, 10) 
-
-#X2=X1
-#T2=T1
-
-# clear space
-mat_contents = None
-
-
-
-X1,T1 = None,None
-
-def load_epoch(epoch):
+if not whitening:
     
-    if epoch>=32:
-        epoch=epoch%32
-  
-    mat_contents = h5py.File('/media/deep/80GB_MNIST/mnist_augdata/augdata/augmented'+str(epoch)+'.h5')
-    
-    #load new data
-    
-    global X1,T1
-    
-    X1 = np.array(mat_contents['all_images_train'],dtype=np.float32) # (1600000,1600) #already in Float32 from data augmenter!
-    T1 = np.array(mat_contents['all_labels_train'],dtype=np.float32) # (1600000, 10)
-    
+    mat_contents =  h5py.File('matlab_mnist/affNIST.mat')
+
+
+    #X1 = np.array(mat_contents['all_images_train'],dtype=np.uint8) # (1600000,1600) UINT8
+    #X1 = np.array(X1, dtype=np.float32)/255.0
+    #T1 = np.array(mat_contents['all_labels_train'],dtype=np.float32) # (1600000, 10)
+    X2 = np.array(mat_contents['all_images_val'],dtype=np.float32) # (10000, 1600) FLOAT32
+    T2 = np.array(mat_contents['all_labels_val'],dtype=np.float32) # (10000, 10) 
+
     # clear space
     mat_contents = None
 
-load_epoch(0)
 
 
 whitemat = None
@@ -85,6 +62,12 @@ if whitening:
     #whitemat_data = h5py.File('matlab_mnist/whitemat.mat') #HDF5 will not work there
     whitemat_data = sio.loadmat('matlab_mnist/whitemat.mat')
     whitemat = np.array(whitemat_data['whitemat'],dtype=np.float32)
+    
+    # load whitened version of testing data
+    X2 = np.array(whitemat_data['all_images_val'],dtype=np.float32) # (10000, 1600) FLOAT32
+    T2 = np.array(whitemat_data['all_labels_val'],dtype=np.float32) # (10000, 10) 
+
+    
     whitemat = np.transpose(whitemat) #batch is batch_size x 1600, so the whitening matrix is multiplied transposed from right
     #transfer to tensorlow
     whitemat = tf.constant(whitemat,dtype=tf.float32) # only constant! otherwise tensorflow would think it is another weight matrix
@@ -93,6 +76,40 @@ if whitening:
     print('---------')
     #clear space
     whitemat_data = None
+    
+    #apply whitening matrix to test data - impossible 
+    #X2 = X2.dot(whitemat)
+
+
+X1,T1 = None,None
+
+
+def load_epoch(epoch):
+    
+    if epoch>=30:
+        epoch=epoch%30
+  
+    mat_contents = h5py.File('augdata/augmented'+str(epoch)+'.h5')
+    
+    #load new data
+    
+    global X1,T1
+    
+    X1 = np.array(mat_contents['all_images_train'],dtype=np.float32) # (1600000,1600) #already in Float32 from data augmenter!
+    T1 = np.array(mat_contents['all_labels_train'],dtype=np.float32) # (1600000, 10)
+    
+    # out of ram
+    #global whitening
+    #if whitening:  #multiply by whitening matrix
+    #    X1 = X1.dot(whitemat)
+        
+    
+    # clear space
+    mat_contents = None
+
+load_epoch(0)
+
+
 
 
 print('Shapes:')
@@ -116,11 +133,11 @@ n_classes = T1.shape[1]
 N_HIDDEN = 64#2048 #for dropout we need to have the same value
 dropout_neurons = N_HIDDEN/3 # neurons to be not affected by OPLU
 
-n_hidden_1 = 6144#N_HIDDEN
-n_hidden_2 = 4096#N_HIDDEN
-n_hidden_3 = 2048#N_HIDDEN
-n_hidden_4 = 1024#N_HIDDEN
-n_hidden_5 = 512#N_HIDDEN
+n_hidden_1 = 2048#N_HIDDEN
+n_hidden_2 = 1024#N_HIDDEN
+n_hidden_3 = 512#N_HIDDEN
+n_hidden_4 = 128#N_HIDDEN
+n_hidden_5 = 64#N_HIDDEN
 n_hidden_6 = N_HIDDEN
 n_hidden_7 = N_HIDDEN
 n_hidden_8 = N_HIDDEN
@@ -334,9 +351,6 @@ def get_batch_train(idx):
     #batch_x = np.array(batch_x,dtype=np.float32)/255.0  #float32
     
     # Too consuming to do it in numpy!
-    #global whitening
-    if whitening:  #multiply by whitening matrix
-        batch_x = batch_x.dot(whitemat)
     
     return batch_x, batch_y
 
@@ -415,7 +429,8 @@ def mlp_OPLU(x, weights, biases):
     
     
     if whitening: #whitening batch
-        x = tf.matmul(x,whitemat,transpose_b=True)
+        x = tf.matmul(x,whitemat,transpose_b=True) #whitemat already transposed
+        #x = tf.matmul(whitemat,x,transpose_b=False)
         
     '''
     x = tf.Print(x,[weights['h2']])
