@@ -3,7 +3,7 @@ clear;
 
 K = 1600;
 
-epochs=29;%249;
+epochs=249;%249;
 
 whitemat = zeros(K,K);
 
