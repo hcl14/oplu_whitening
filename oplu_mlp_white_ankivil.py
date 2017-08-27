@@ -335,8 +335,8 @@ def get_batch_train(idx):
     
     # Too consuming to do it in numpy!
     #global whitening
-    #if whitening:  #multiply by whitening matrix
-    #    batch_x = batch_x.dot(whitemat)
+    if whitening:  #multiply by whitening matrix
+        batch_x = batch_x.dot(whitemat)
     
     return batch_x, batch_y
 

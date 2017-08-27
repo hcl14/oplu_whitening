@@ -13,7 +13,7 @@ import datumio.datagen as dtd
 
 
 
-epochs = 100
+epochs = 230
 
 
 # load matlab
