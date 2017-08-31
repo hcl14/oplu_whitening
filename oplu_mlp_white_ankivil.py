@@ -17,7 +17,10 @@ import h5py #matlab v7.3 files
 # Parameters
 whitening = True  # if set to True, whitening matrix would be loaded and applied
 
-learning_rate = 0.005 # we need this amount for data with elastic distortions
+learning_rate = 0.004 # we need this amount for data with elastic distortions
+
+tf_learning_rate = tf.placeholder(tf.float32, shape=[])
+
 #learning_rate_decrease_step = 10 #(epochs)
 learning_rate_decay = 0.98 #0.99
 
@@ -600,7 +603,7 @@ biases = {
 pred = mlp_OPLU(x, weights, biases)
 #pred = mlp_OPLU_10(x, weights, biases)
 cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
-optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
+optimizer = tf.train.GradientDescentOptimizer(learning_rate=tf_learning_rate).minimize(cost)
         
 
 init = tf.global_variables_initializer()
@@ -638,7 +641,11 @@ with tf.Session(config=tf.ConfigProto(
             batch_x, batch_y = get_batch_train(idx)
             
             
-            _, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y, np_mask: compute_np_mask()}) # DROPOUT ADDED!
+            #_, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y, np_mask: compute_np_mask(), tf_learning_rate: learning_rate}) # DROPOUT ADDED!
+            
+            _, c = sess.run([optimizer, cost], feed_dict={x: batch_x, y: batch_y, tf_learning_rate: learning_rate}) # DROPOUT ADDED!
+            
+            
             avg_cost_train += c / nbatches
             
         #if epoch % learning_rate_decrease_step == 0:
@@ -657,7 +664,7 @@ with tf.Session(config=tf.ConfigProto(
 		accuracy_test_val = (accuracy.eval({x: X2, y: T2})) * 100
             
             
-            print('Epoch: %d, cost_train = %1.9f, accuracy_train = %1.2f%%, accuracy_test = %1.2f%%' % (epoch + 1, avg_cost_train, accuracy_train_val, accuracy_test_val))
+            print('Epoch: %d, learning rate: %1.9f, cost_train = %1.9f, accuracy_train = %1.2f%%, accuracy_test = %1.2f%%' % (epoch + 1, learning_rate, avg_cost_train, accuracy_train_val, accuracy_test_val))
 
     print('Optimization Finished!')
 
