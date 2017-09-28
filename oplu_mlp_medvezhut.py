@@ -75,8 +75,8 @@ print('---------')
 import tensorflow as tf
 
 # Parameters
-learning_rate = 0.001
-learning_rate_decay = 0.99
+learning_rate = 0.0005
+learning_rate_decay = 0.98
 
 training_epochs = 100
 batch_size = 100
@@ -174,16 +174,14 @@ def my_derivative(op, grad):
     grad_new = combine_even_odd(grad_even_new,grad_odd_new)
     
     # we can check the shape this way
-    #grad_new = tf.Print(grad_new, [tf.shape(grad_new)], message = 'debug: ')
+    # grad_new = tf.Print(grad_new, [tf.shape(grad_new)], message = 'debug: ')
     
     
     return grad_new
 
 
 
-
-def my_activation(x, name='my_activation'): 
-    
+def OPLU(x, name="OPLU"):
     # x is n_batches*layer_size
     
     #y = apply_my_custom_activation(x,...)
@@ -206,9 +204,36 @@ def my_activation(x, name='my_activation'):
     
     # combine into one
     y = combine_even_odd(even_new,odd_new)
-    # https://stackoverflow.com/questions/43256517/how-to-register-a-custom-gradient-for-a-operation-composed-of-tf-operations
-    g = tf.get_default_graph()
+        
+    return y
 
+
+
+# We want to mask OPLU from gradient computation on the backward pass, this is done by making it appear as Identity.
+# OPLU gradient is then applied using overrided Identity op
+# See there how to mask some commands from gradient computation: https://stackoverflow.com/questions/36456436/how-can-i-define-only-the-gradient-for-a-tensorflow-subgraph/36480182#36480182
+
+'''
+Suppose you want group of ops that behave as f(x) in forward mode, but as g(x) in the backward mode. You implement it as
+
+t = g(x)
+y = t + tf.stop_gradient(f(x) - t)
+
+So in your case your g(x) could be an identity op, with a custom gradient using gradient_override_map
+'''
+
+
+def my_activation(x, name='my_activation'): 
+    
+    # masking OPLU from gradient computation
+    t = tf.identity(x)
+    y = t + tf.stop_gradient(OPLU(x) - t)
+    
+    
+    # Applying custom gradient
+    
+    # https://stackoverflow.com/questions/43256517/how-to-register-a-custom-gradient-for-a-operation-composed-of-tf-operations
+    
     # hack to apply custom activation derivative - it is not the same size as weight matrix, but a layer-size vector (incl. batches), so name 'gradient' does not seem correct
     
     g = tf.get_default_graph()
