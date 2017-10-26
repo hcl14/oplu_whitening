@@ -279,7 +279,8 @@ def multilayer_perceptron(x):
     
     # Hidden fully connected layer
     layer_1 = tf.matmul(x, weights['h1'])
-    layer_1 = my_activation(layer_1)
+    #layer_1 = my_activation(layer_1)
+    layer_1 = tf.nn.relu(layer_1)
     
     #adding biases
     #layer shape is batch_size*layer, so we just add batch_size column of ones
@@ -287,15 +288,17 @@ def multilayer_perceptron(x):
     
     # Hidden fully connected layer
     layer_2 = tf.matmul(layer_1, weights['h2'])
-    layer_2 = my_activation(layer_2)
+    #layer_2 = my_activation(layer_2)
     #layer_2 = tf.concat([layer_2,ones], 1)
+    layer_2 = tf.nn.relu(layer_2)
     
     
     
     # Hidden fully connected layer
     layer_3 = tf.matmul(layer_2, weights['h3'])
-    layer_3 = my_activation(layer_3)
+    #layer_3 = my_activation(layer_3)
     #layer_3 = tf.concat([layer_3,ones], 1)
+    layer_3 = tf.nn.relu(layer_3)
     
     
     
@@ -312,7 +315,7 @@ logits = multilayer_perceptron(X)
 
 # Define loss and optimizer
 cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=Y))
-opt = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
+opt = tf.train.GradientDescentOptimizer(learning_rate=tf_learning_rate)
 
 #optimizer = opt.minimize(cost)
 
