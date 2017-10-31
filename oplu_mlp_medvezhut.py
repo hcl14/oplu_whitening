@@ -225,9 +225,6 @@ So in your case your g(x) could be an identity op, with a custom gradient using 
 
 def my_activation(x, name='my_activation'): 
     
-    # masking OPLU from gradient computation
-    t = tf.identity(x)
-    y = t + tf.stop_gradient(OPLU(x) - t)
     
     
     # Applying custom gradient
@@ -239,9 +236,17 @@ def my_activation(x, name='my_activation'):
     g = tf.get_default_graph()
 
     with g.gradient_override_map({'Identity': 'my_derivative'}):
-        y = tf.identity(y, name='my_activ')
-        return y
-    #return y
+        y = tf.identity(x, name='my_activ')  # we need to pass correct inputs (x) into gradient override
+    #    return y
+    
+    
+    # masking OPLU from gradient computation
+    t = tf.identity(y)
+    y = t + tf.stop_gradient(OPLU(y) - t)  
+    
+    
+    
+    return y
 
 
 
@@ -279,8 +284,8 @@ def multilayer_perceptron(x):
     
     # Hidden fully connected layer
     layer_1 = tf.matmul(x, weights['h1'])
-    #layer_1 = my_activation(layer_1)
-    layer_1 = tf.nn.relu(layer_1)
+    layer_1 = my_activation(layer_1)
+    #layer_1 = tf.nn.relu(layer_1)
     
     #adding biases
     #layer shape is batch_size*layer, so we just add batch_size column of ones
@@ -288,17 +293,15 @@ def multilayer_perceptron(x):
     
     # Hidden fully connected layer
     layer_2 = tf.matmul(layer_1, weights['h2'])
-    #layer_2 = my_activation(layer_2)
-    #layer_2 = tf.concat([layer_2,ones], 1)
-    layer_2 = tf.nn.relu(layer_2)
+    layer_2 = my_activation(layer_2)
+    #layer_2 = tf.nn.relu(layer_2)
     
     
     
     # Hidden fully connected layer
     layer_3 = tf.matmul(layer_2, weights['h3'])
-    #layer_3 = my_activation(layer_3)
-    #layer_3 = tf.concat([layer_3,ones], 1)
-    layer_3 = tf.nn.relu(layer_3)
+    layer_3 = my_activation(layer_3)
+    #layer_3 = tf.nn.relu(layer_3)
     
     
     
