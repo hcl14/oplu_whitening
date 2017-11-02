@@ -75,8 +75,8 @@ print('---------')
 import tensorflow as tf
 
 # Parameters
-learning_rate = 0.0005
-learning_rate_decay = 0.98
+learning_rate = 0.001
+learning_rate_decay = 0.995
 
 training_epochs = 100
 batch_size = 100
@@ -86,8 +86,9 @@ display_step = 1
 n_hidden_1 = 2048 # 1st layer number of neurons
 n_hidden_2 = 1024 # 2nd layer number of neurons
 n_hidden_3 = 512 # 3rd layer
-n_input = X1.shape[1] #784 # MNIST data input (img shape: 28*28)
-n_classes = T1.shape[1] #10 # MNIST total classes (0-9 digits)
+n_hidden_4 = 64
+n_input = X1.shape[1]
+n_classes = T1.shape[1]
 
 
 
@@ -98,7 +99,7 @@ n_classes = T1.shape[1] #10 # MNIST total classes (0-9 digits)
 # tf Graph input
 X = tf.placeholder("float", [None, n_input])
 Y = tf.placeholder("float", [None, n_classes])
-tf_learning_rate = tf.placeholder(tf.float32, shape=[])
+tf_learning_rate = tf.placeholder(tf.float32, shape=[])  # need to be a placeholder if we want to apply new learning rate on each step
 
 
 
@@ -123,22 +124,37 @@ def ort_initializer(shape, dtype=tf.float32):
       return scale*mat
 
 
+# compute ||W*W^T - I||L2 for a matrix
+def ort_discrepancy(matrix):
+    
+    wwt = tf.matmul(matrix, matrix, transpose_b=True)
+    
+    rows = tf.shape(wwt)[0]
+    cols = tf.shape(wwt)[1]
+    
+    return tf.norm((wwt - tf.eye(rows,cols)),ord='euclidean') #/tf.to_float(rows*cols)
+
+
 
 
 # Store layers weight & bias
+
 weights = {
     'h1': tf.Variable(ort_initializer([n_input+1, n_hidden_1])),
     'h2': tf.Variable(ort_initializer([n_hidden_1, n_hidden_2])),
     'h3': tf.Variable(ort_initializer([n_hidden_2, n_hidden_3])),
-    'out': tf.Variable(ort_initializer([n_hidden_3, n_classes]))
+    'h4': tf.Variable(ort_initializer([n_hidden_3, n_hidden_4])),
+    'out': tf.Variable(ort_initializer([n_hidden_4, n_classes]))
 }
+
+
 
 
 def combine_even_odd(even, odd):
     res = tf.reshape(tf.concat([even[..., tf.newaxis], odd[..., tf.newaxis]], axis=-1), [tf.shape(even)[0], -1])
     return res
 
-# needed to register custom activation derivative. Does not seem to be actual gradient
+# needed to register custom activation derivative. 
 # https://stackoverflow.com/questions/43256517/how-to-register-a-custom-gradient-for-a-operation-composed-of-tf-operations
 @tf.RegisterGradient('my_derivative')
 def my_derivative(op, grad): 
@@ -219,7 +235,7 @@ Suppose you want group of ops that behave as f(x) in forward mode, but as g(x) i
 t = g(x)
 y = t + tf.stop_gradient(f(x) - t)
 
-So in your case your g(x) could be an identity op, with a custom gradient using gradient_override_map
+So in your case your g(x) could be an identity op, with a custom op gradient using gradient_override_map
 '''
 
 
@@ -231,16 +247,16 @@ def my_activation(x, name='my_activation'):
     
     # https://stackoverflow.com/questions/43256517/how-to-register-a-custom-gradient-for-a-operation-composed-of-tf-operations
     
-    # hack to apply custom activation derivative - it is not the same size as weight matrix, but a layer-size vector (incl. batches), so name 'gradient' does not seem correct
+    # hack to apply custom activation derivative 
     
     g = tf.get_default_graph()
 
     with g.gradient_override_map({'Identity': 'my_derivative'}):
-        y = tf.identity(x, name='my_activ')  # we need to pass correct inputs (x) into gradient override
+        y = tf.identity(x, name='my_activ')  # !!! we need to pass correct inputs (x) into gradient override
     #    return y
     
     
-    # masking OPLU from gradient computation
+    # masking OPLU from gradient computation - this code should go after 
     t = tf.identity(y)
     y = t + tf.stop_gradient(OPLU(y) - t)  
     
@@ -250,7 +266,7 @@ def my_activation(x, name='my_activation'):
 
 
 
-
+# my custom function to modify gradient
 def my_weight_gradient_modification(grad_var_tuple):
     
     
@@ -287,9 +303,6 @@ def multilayer_perceptron(x):
     layer_1 = my_activation(layer_1)
     #layer_1 = tf.nn.relu(layer_1)
     
-    #adding biases
-    #layer shape is batch_size*layer, so we just add batch_size column of ones
-    #layer_1 = tf.concat([layer_1,ones], 1)
     
     # Hidden fully connected layer
     layer_2 = tf.matmul(layer_1, weights['h2'])
@@ -303,10 +316,17 @@ def multilayer_perceptron(x):
     layer_3 = my_activation(layer_3)
     #layer_3 = tf.nn.relu(layer_3)
     
+    layer_4 = tf.matmul(layer_3, weights['h4'])
+    layer_4 = my_activation(layer_4)
+    
+  
     
     
     # Output fully connected layer with a neuron for each class
-    out_layer = tf.matmul(layer_3, weights['out'])
+    out_layer = tf.matmul(layer_4, weights['out'])
+    #out_layer = my_activation(out_layer)  # To not have any additional linear layer which evolves in non-orthogonal way. We have also softmax at the end
+    # training is very slow with oplu on fully connected layer
+    
     return out_layer
 
 
@@ -320,16 +340,17 @@ logits = multilayer_perceptron(X)
 cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=Y))
 opt = tf.train.GradientDescentOptimizer(learning_rate=tf_learning_rate)
 
-#optimizer = opt.minimize(cost)
+# !!! Comment this out and uncomment code below for gradient projection
+optimizer = opt.minimize(cost) 
 
 ##############################################
 ## Here I want to do manual gradient modification
 ##############################################
 
-
+'''
 # Compute the gradients for a list of variables I am interested in.
 # Those are true weight gradients:
-grads_and_vars = opt.compute_gradients(cost, [weights['h1'],weights['h2'],weights['h3'],weights['out']])
+grads_and_vars = opt.compute_gradients(cost, [weights['h1'],weights['h2'],weights['h3'],weights['h4'],weights['out']])
 # grads_and_vars is a list of tuples (gradient, variable).  Do whatever you
 # need to the 'gradient' part, for example cap them, etc.
 
@@ -338,12 +359,13 @@ grads_and_vars[0]=my_weight_gradient_modification(grads_and_vars[0])
 grads_and_vars[1]=my_weight_gradient_modification(grads_and_vars[1])
 grads_and_vars[2]=my_weight_gradient_modification(grads_and_vars[2])
 grads_and_vars[3]=my_weight_gradient_modification(grads_and_vars[3])
+grads_and_vars[4]=my_weight_gradient_modification(grads_and_vars[4])
 
 
 
 # Ask the optimizer to apply the modified gradients.
 optimizer = opt.apply_gradients(grads_and_vars)
-
+'''
 ##############################################
 
 
@@ -408,8 +430,8 @@ with tf.Session() as sess:
             accuracy_train_val = (accuracy.eval({X: X1, Y: T1})) * 100                   
             accuracy_test_val = (accuracy.eval({X: X2, Y: T2}))*100
 
-            print("Epoch:", '%04d' % (epoch+1), "learning rate: %1.9f"%learning_rate," cost={:.9f}".format(avg_cost),"accuracy_train = %1.2f%%" % accuracy_train_val, "accuracy_test = %1.2f%%" % accuracy_test_val)
-            
+            print("Epoch:", '%04d' % (epoch+1), "learning rate: %1.9f"%learning_rate," cost={:.9f}".format(avg_cost),"||W2*W2^t - I||L2 = %1.4f " % ort_discrepancy(weights['h3']).eval(),  "accuracy_train = %1.2f%%" % accuracy_train_val, "accuracy_test = %1.2f%%" % accuracy_test_val)
+           
         learning_rate = learning_rate*learning_rate_decay  #manually decay learning rate
 
 
