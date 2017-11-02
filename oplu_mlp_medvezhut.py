@@ -140,7 +140,8 @@ def ort_discrepancy(matrix):
 # Store layers weight & bias
 
 weights = {
-    'h1': tf.Variable(ort_initializer([n_input+1, n_hidden_1])),
+    #'h1': tf.Variable(ort_initializer([n_input+1, n_hidden_1])),  # use this to add biases
+    'h1': tf.Variable(ort_initializer([n_input, n_hidden_1])),
     'h2': tf.Variable(ort_initializer([n_hidden_1, n_hidden_2])),
     'h3': tf.Variable(ort_initializer([n_hidden_2, n_hidden_3])),
     'h4': tf.Variable(ort_initializer([n_hidden_3, n_hidden_4])),
@@ -288,14 +289,20 @@ def my_weight_gradient_modification(grad_var_tuple):
 def multilayer_perceptron(x):
     
     
+    
     # bias replacements
     ones = tf.ones([tf.shape(x)[0],1],tf.float32)
 
-    
+    ################### Adding biases as new column. In this case you need to initialize first weight matrix as  'h1': tf.Variable(ort_initializer([n_input+1, n_hidden_1])),
     
     #adding biases
     #input shape is batch_size*input, so we just add batch_size column of ones
-    x = tf.concat([x,ones], 1)
+    #x = tf.concat([x,ones], 1)
+    
+    ###################
+    
+    # Let's change first pixel instead. We do not lose anything, as actual digit is smaller (28x28) in the middle of the 40x40 square
+    x = tf.concat([x[:,1:],ones], 1)
     
     
     # Hidden fully connected layer
