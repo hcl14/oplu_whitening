@@ -74,19 +74,27 @@ print('---------')
 
 import tensorflow as tf
 
-# Parameters
-learning_rate = 0.001
-learning_rate_decay = 0.995
+#from adamax import *
 
-training_epochs = 100
+# Parameters
+learning_rate = 0.005
+learning_rate_decay = 0.98
+
+momentum = 0.3
+
+training_epochs = 1000
 batch_size = 100
 display_step = 1
 
 # Network Parameters
 n_hidden_1 = 2048 # 1st layer number of neurons
-n_hidden_2 = 1024 # 2nd layer number of neurons
-n_hidden_3 = 512 # 3rd layer
-n_hidden_4 = 64
+n_hidden_2 = 2048 # 2nd layer number of neurons
+n_hidden_3 = 2048 # 3rd layer
+n_hidden_4 = 2048
+n_hidden_5 = 2048
+n_hidden_6 = 2048
+n_hidden_7 = 2048
+
 n_input = X1.shape[1]
 n_classes = T1.shape[1]
 
@@ -145,7 +153,10 @@ weights = {
     'h2': tf.Variable(ort_initializer([n_hidden_1, n_hidden_2])),
     'h3': tf.Variable(ort_initializer([n_hidden_2, n_hidden_3])),
     'h4': tf.Variable(ort_initializer([n_hidden_3, n_hidden_4])),
-    'out': tf.Variable(ort_initializer([n_hidden_4, n_classes]))
+    'h5': tf.Variable(ort_initializer([n_hidden_4, n_hidden_5])),
+    'h6': tf.Variable(ort_initializer([n_hidden_5, n_hidden_6])),
+    'h7': tf.Variable(ort_initializer([n_hidden_6, n_hidden_7])),
+    'out': tf.Variable(ort_initializer([n_hidden_7, n_classes]))
 }
 
 
@@ -190,8 +201,11 @@ def my_derivative(op, grad):
     # inteweave gradients back
     grad_new = combine_even_odd(grad_even_new,grad_odd_new)
     
+    
+    
+    
     # we can check the shape this way
-    # grad_new = tf.Print(grad_new, [tf.shape(grad_new)], message = 'debug: ')
+    #grad_new = tf.Print(grad_new, [op.name, tf.norm(grad_new)], message = 'op grad norm')
     
     
     return grad_new
@@ -326,11 +340,18 @@ def multilayer_perceptron(x):
     layer_4 = tf.matmul(layer_3, weights['h4'])
     layer_4 = my_activation(layer_4)
     
-  
+    layer_5 = tf.matmul(layer_4, weights['h5'])
+    layer_5 = my_activation(layer_5)
+    
+    layer_6 = tf.matmul(layer_5, weights['h6'])
+    layer_6 = my_activation(layer_6)
+    
+    layer_7 = tf.matmul(layer_6, weights['h7'])
+    layer_7 = my_activation(layer_7)
     
     
     # Output fully connected layer with a neuron for each class
-    out_layer = tf.matmul(layer_4, weights['out'])
+    out_layer = tf.matmul(layer_7, weights['out'])
     #out_layer = my_activation(out_layer)  # To not have any additional linear layer which evolves in non-orthogonal way. We have also softmax at the end
     # training is very slow with oplu on fully connected layer
     
@@ -344,42 +365,57 @@ def multilayer_perceptron(x):
 logits = multilayer_perceptron(X)
 
 # Define loss and optimizer
-cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=Y))
+#cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=Y))
+cost = tf.square((Y-logits))
+
 opt = tf.train.GradientDescentOptimizer(learning_rate=tf_learning_rate)
+#opt = tf.train.MomentumOptimizer(learning_rate=tf_learning_rate, momentum=momentum, use_nesterov=True)
+#opt = AdamaxOptimizer(learning_rate=tf_learning_rate) # default values are learning_rate=0.001, beta1=0.9, beta2=0.999, use_locking=False
 
 # !!! Comment this out and uncomment code below for gradient projection
-optimizer = opt.minimize(cost) 
+#optimizer = opt.minimize(cost) 
 
 ##############################################
 ## Here I want to do manual gradient modification
 ##############################################
 
-'''
+
 # Compute the gradients for a list of variables I am interested in.
 # Those are true weight gradients:
-grads_and_vars = opt.compute_gradients(cost, [weights['h1'],weights['h2'],weights['h3'],weights['h4'],weights['out']])
+grads_and_vars = opt.compute_gradients(cost, [weights['h1'],weights['h2'],weights['h3'],weights['h4'],weights['h5'],weights['h6'],weights['h7'],weights['out']])
 # grads_and_vars is a list of tuples (gradient, variable).  Do whatever you
 # need to the 'gradient' part, for example cap them, etc.
 
+
+
+
+
 # project weights
-grads_and_vars[0]=my_weight_gradient_modification(grads_and_vars[0])
-grads_and_vars[1]=my_weight_gradient_modification(grads_and_vars[1])
-grads_and_vars[2]=my_weight_gradient_modification(grads_and_vars[2])
-grads_and_vars[3]=my_weight_gradient_modification(grads_and_vars[3])
+
+
+grads_and_vars[6]=my_weight_gradient_modification(grads_and_vars[6])
+grads_and_vars[5]=my_weight_gradient_modification(grads_and_vars[5])
 grads_and_vars[4]=my_weight_gradient_modification(grads_and_vars[4])
+grads_and_vars[3]=my_weight_gradient_modification(grads_and_vars[3])
+grads_and_vars[2]=my_weight_gradient_modification(grads_and_vars[2])
+grads_and_vars[1]=my_weight_gradient_modification(grads_and_vars[1])
+grads_and_vars[0]=my_weight_gradient_modification(grads_and_vars[0])
 
-
+# weights['out'] are not fixed !
 
 # Ask the optimizer to apply the modified gradients.
+
+
 optimizer = opt.apply_gradients(grads_and_vars)
-'''
+
 ##############################################
 
 
 
 
 # Test model
-pred = tf.nn.softmax(logits)  # Apply softmax to logits
+#pred = tf.nn.softmax(logits)  # Apply softmax to logits
+pred = logits
 
 
 #pred = tf.Print(pred, [tf.shape(grads_and_vars[0]),tf.shape(grads_and_vars[1]),tf.shape(grads_and_vars[4])])
@@ -393,6 +429,15 @@ accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 
 # Initializing the variables
 init = tf.global_variables_initializer()
+
+
+passed_98 = False
+passed_985 = False
+passed_987 = False
+passed_9884 = False
+passed_99 = False
+passed_992 = False
+
 
 with tf.Session() as sess:
     sess.run(init)
@@ -430,6 +475,8 @@ with tf.Session() as sess:
             
             # Run optimization op (backprop) and cost op (to get loss value)
             _, c = sess.run([optimizer, cost], feed_dict={X: batch_x, Y: batch_y, tf_learning_rate: learning_rate})
+            
+            print("---")
             # Compute average loss
             avg_cost += c / total_batch
         # Display logs per epoch step
@@ -440,6 +487,36 @@ with tf.Session() as sess:
             print("Epoch:", '%04d' % (epoch+1), "learning rate: %1.9f"%learning_rate," cost={:.9f}".format(avg_cost),"||W2*W2^t - I||L2 = %1.4f " % ort_discrepancy(weights['h3']).eval(),  "accuracy_train = %1.2f%%" % accuracy_train_val, "accuracy_test = %1.2f%%" % accuracy_test_val)
            
         learning_rate = learning_rate*learning_rate_decay  #manually decay learning rate
+        
+        # empirical slowdown after reaching 98%
+        if accuracy_test_val>98. and (not passed_98):
+            learning_rate = learning_rate/1.5
+            passed_98 = True
+            momentum += 0.1
+            
+        if accuracy_test_val>98.5 and (not passed_985):
+            learning_rate = learning_rate/1.5
+            passed_985 = True
+            momentum += 0.1
+            
+        if accuracy_test_val>98.7 and (not passed_987):
+            learning_rate = learning_rate/1.5
+            passed_987 = True
+            momentum += 0.1
+            
+        if accuracy_test_val>98.84 and (not passed_9884):
+            learning_rate = learning_rate/2.5
+            passed_9884 = True
+            #momentum += 0.1
+            
+        if accuracy_test_val>99. and (not passed_99):
+            learning_rate = learning_rate/1.5
+            passed_99 = True
+            
+        if accuracy_test_val>99.2 and (not passed_992):
+            learning_rate = learning_rate/1.5
+            passed_992 = True
+
 
 
 
