@@ -476,7 +476,7 @@ with tf.Session() as sess:
             # Run optimization op (backprop) and cost op (to get loss value)
             _, c = sess.run([optimizer, cost], feed_dict={X: batch_x, Y: batch_y, tf_learning_rate: learning_rate})
             
-            print("---")
+            #print("---")
             # Compute average loss
             avg_cost += c / total_batch
         # Display logs per epoch step
