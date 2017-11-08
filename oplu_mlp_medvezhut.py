@@ -87,13 +87,11 @@ batch_size = 100
 display_step = 1
 
 # Network Parameters
-n_hidden_1 = 2048 # 1st layer number of neurons
-n_hidden_2 = 2048 # 2nd layer number of neurons
+n_hidden_1 = 6256 # 1st layer number of neurons
+n_hidden_2 = 4096 # 2nd layer number of neurons
 n_hidden_3 = 2048 # 3rd layer
-n_hidden_4 = 2048
-n_hidden_5 = 2048
-n_hidden_6 = 2048
-n_hidden_7 = 2048
+n_hidden_4 = 512
+n_hidden_5 = 64
 
 n_input = X1.shape[1]
 n_classes = T1.shape[1]
@@ -154,9 +152,7 @@ weights = {
     'h3': tf.Variable(ort_initializer([n_hidden_2, n_hidden_3])),
     'h4': tf.Variable(ort_initializer([n_hidden_3, n_hidden_4])),
     'h5': tf.Variable(ort_initializer([n_hidden_4, n_hidden_5])),
-    'h6': tf.Variable(ort_initializer([n_hidden_5, n_hidden_6])),
-    'h7': tf.Variable(ort_initializer([n_hidden_6, n_hidden_7])),
-    'out': tf.Variable(ort_initializer([n_hidden_7, n_classes]))
+    'out': tf.Variable(ort_initializer([n_hidden_5, n_classes]))
 }
 
 
@@ -342,16 +338,19 @@ def multilayer_perceptron(x):
     
     layer_5 = tf.matmul(layer_4, weights['h5'])
     layer_5 = my_activation(layer_5)
-    
+
+    '''
     layer_6 = tf.matmul(layer_5, weights['h6'])
     layer_6 = my_activation(layer_6)
     
     layer_7 = tf.matmul(layer_6, weights['h7'])
     layer_7 = my_activation(layer_7)
-    
+    '''
+   
+   
     
     # Output fully connected layer with a neuron for each class
-    out_layer = tf.matmul(layer_7, weights['out'])
+    out_layer = tf.matmul(layer_5, weights['out'])
     #out_layer = my_activation(out_layer)  # To not have any additional linear layer which evolves in non-orthogonal way. We have also softmax at the end
     # training is very slow with oplu on fully connected layer
     
