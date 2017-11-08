@@ -8,7 +8,7 @@ import h5py #matlab v7.3 files
 # Import MNIST data
 
 
-augmented_datasets_available = 100
+augmented_datasets_available = 250
 
     
 mat_contents =  h5py.File('matlab_mnist/affNIST.mat')
@@ -381,7 +381,7 @@ opt = tf.train.GradientDescentOptimizer(learning_rate=tf_learning_rate)
 
 # Compute the gradients for a list of variables I am interested in.
 # Those are true weight gradients:
-grads_and_vars = opt.compute_gradients(cost, [weights['h1'],weights['h2'],weights['h3'],weights['h4'],weights['h5'],weights['h6'],weights['h7'],weights['out']])
+grads_and_vars = opt.compute_gradients(cost, [weights['h1'],weights['h2'],weights['h3'],weights['h4'],weights['h5'],weights['out']])
 # grads_and_vars is a list of tuples (gradient, variable).  Do whatever you
 # need to the 'gradient' part, for example cap them, etc.
 
@@ -391,9 +391,10 @@ grads_and_vars = opt.compute_gradients(cost, [weights['h1'],weights['h2'],weight
 
 # project weights
 
-
+'''
 grads_and_vars[6]=my_weight_gradient_modification(grads_and_vars[6])
 grads_and_vars[5]=my_weight_gradient_modification(grads_and_vars[5])
+'''
 grads_and_vars[4]=my_weight_gradient_modification(grads_and_vars[4])
 grads_and_vars[3]=my_weight_gradient_modification(grads_and_vars[3])
 grads_and_vars[2]=my_weight_gradient_modification(grads_and_vars[2])
