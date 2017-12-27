@@ -87,7 +87,7 @@ import tensorflow as tf
 batch_size = 100
 
 learning_rate = 0.0001#1.0/batch_size**2
-learning_rate_decay = 0.999
+learning_rate_decay = 0.99
 
 momentum = 0.3
 
@@ -410,7 +410,7 @@ layer_48_a = OPLU(layer_48_z)
 layer_summary_in = combine_summary(layer_41_a,layer_42_a,layer_43_a,layer_44_a,layer_45_a,layer_46_a,layer_47_a,layer_48_a)
                                    
 layer_summary_z = tf.matmul(layer_summary_in, weights['summary'])
-layer_summary_a = tf.nn.relu(layer_summary_z) #tf.tanh(layer_summary_z)#tf.nn.relu(layer_summary_z)#
+layer_summary_a = tf.nn.softplus(layer_summary_z) #tf.nn.relu(layer_summary_z)
 
 
 out1 = tf.matmul(layer_summary_a, weights['out1'])
@@ -512,7 +512,10 @@ def tanh_derivative(x):
 def relu_derivative(x):
     return tf.cast(x>0, dtype=tf.float32)
 
-d_layer_summary_z = tf.multiply(relu_derivative(layer_summary_z),d_layer_summary_a) 
+def softplus_derivative(x):
+    return tf.nn.sigmoid(x)
+
+d_layer_summary_z = tf.multiply(softplus_derivative(layer_summary_z),d_layer_summary_a)#tf.multiply(relu_derivative(layer_summary_z),d_layer_summary_a) 
 
 d_layer_summary_w = tf.matmul(layer_summary_in, d_layer_summary_z, transpose_a=True)    
 
@@ -808,11 +811,13 @@ with tf.Session() as sess:
             learning_rate = learning_rate/1.5
             passed_98 = True
             momentum += 0.1
+        '''
             
         if accuracy_test_val>98.5 and (not passed_985):
-            learning_rate = learning_rate/1.5
+            learning_rate = learning_rate/2
             passed_985 = True
             momentum += 0.1
+        '''
             
         if accuracy_test_val>98.7 and (not passed_987):
             learning_rate = learning_rate/1.5
