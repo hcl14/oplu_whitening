@@ -84,9 +84,9 @@ import tensorflow as tf
 #from adamax import *
 
 # Parameters
-batch_size = 100
+batch_size = 1000
 
-learning_rate = 0.0001#1.0/batch_size**2
+learning_rate = 0.00005#1.0/batch_size**2
 learning_rate_decay = 0.99
 
 momentum = 0.3
@@ -154,7 +154,16 @@ def ort_discrepancy(matrix):
     return tf.norm((wwt - tf.eye(rows,cols)),ord='euclidean') #/tf.to_float(rows*cols)
 
 
-
+# this function receives tf.Variable which is not iterable, hence complications
+def gram_schmidt(vectors):
+    basis = []
+    for v in vectors:
+        w = v - np.sum( np.dot(v,b)*b  for b in basis )
+        if (w > 1e-10).any():  
+            basis.append(w/np.linalg.norm(w))
+        else:
+            basis.append(np.zeros(w.shape))
+    return np.array(basis)
 
 # Store layers weight & bias
 
@@ -410,7 +419,7 @@ layer_48_a = OPLU(layer_48_z)
 layer_summary_in = combine_summary(layer_41_a,layer_42_a,layer_43_a,layer_44_a,layer_45_a,layer_46_a,layer_47_a,layer_48_a)
                                    
 layer_summary_z = tf.matmul(layer_summary_in, weights['summary'])
-layer_summary_a = tf.nn.softplus(layer_summary_z) #tf.nn.relu(layer_summary_z)
+layer_summary_a = layer_summary_z #tf.nn.softplus(layer_summary_z) #tf.nn.relu(layer_summary_z)
 
 
 out1 = tf.matmul(layer_summary_a, weights['out1'])
@@ -515,7 +524,7 @@ def relu_derivative(x):
 def softplus_derivative(x):
     return tf.nn.sigmoid(x)
 
-d_layer_summary_z = tf.multiply(softplus_derivative(layer_summary_z),d_layer_summary_a)#tf.multiply(relu_derivative(layer_summary_z),d_layer_summary_a) 
+d_layer_summary_z = d_layer_summary_a#tf.multiply(softplus_derivative(layer_summary_z),d_layer_summary_a)#tf.multiply(relu_derivative(layer_summary_z),d_layer_summary_a) 
 
 d_layer_summary_w = tf.matmul(layer_summary_in, d_layer_summary_z, transpose_a=True)    
 
@@ -802,9 +811,46 @@ with tf.Session() as sess:
             accuracy_train_val = (accuracy.eval({X: X1, Y: T1})) * 100                   
             accuracy_test_val = (accuracy.eval({X: X2, Y: T2}))*100
             
-            print("Epoch:", '%04d' % (epoch+1), "lr: %1.9f"%learning_rate," cost={:.9f}".format(avg_cost),"||W21*W21^t - I||L2 = %1.4f " % ort_discrepancy(weights['h21']).eval(), "||W48*W48^t - I||L2 = %1.4f " % ort_discrepancy(weights['h48']).eval(),  "Pearson layer 2 = %1.4f "%pearson_correlation_21().eval({X: batch_x, Y: batch_y, tf_learning_rate: learning_rate}), "Pearson layer 3 = %1.4f "%pearson_correlation_31().eval({X: batch_x, Y: batch_y, tf_learning_rate: learning_rate}), "Pearson layer 4 = %1.4f "%pearson_correlation_41().eval({X: batch_x, Y: batch_y, tf_learning_rate: learning_rate}), "accuracy_train = %1.2f%%" % accuracy_train_val, "accuracy_test = %1.2f%%" % accuracy_test_val)
+            ort_discrepancy21 = ort_discrepancy(weights['h21']).eval()
+            
+            print("Epoch:", '%04d' % (epoch+1), "lr: %1.9f"%learning_rate," cost={:.9f}".format(avg_cost),"||W21*W21^t - I||L2 = %1.4f " % ort_discrepancy21, "||W48*W48^t - I||L2 = %1.4f " % ort_discrepancy(weights['h48']).eval(),  "Pearson layer 2 = %1.4f "%pearson_correlation_21().eval({X: batch_x, Y: batch_y, tf_learning_rate: learning_rate}), "Pearson layer 3 = %1.4f "%pearson_correlation_31().eval({X: batch_x, Y: batch_y, tf_learning_rate: learning_rate}), "Pearson layer 4 = %1.4f "%pearson_correlation_41().eval({X: batch_x, Y: batch_y, tf_learning_rate: learning_rate}), "accuracy_train = %1.2f%%" % accuracy_train_val, "accuracy_test = %1.2f%%" % accuracy_test_val)
            
         learning_rate = learning_rate*learning_rate_decay  #manually decay learning rate
+        
+        
+        # Apply gram_schmidt to fix weights
+        if ort_discrepancy21 > 0.001:
+                print("Fixing orthogonality...")
+                
+                weights = {
+                # non-square matrix, watch rows/columns!
+                'h1': tf.Variable(gram_schmidt(weights['h1'].eval()),dtype=tf.float32),
+                
+                'h21':tf.Variable(gram_schmidt(weights['h21'].eval()),dtype=tf.float32),
+                'h22':tf.Variable(gram_schmidt(weights['h22'].eval()),dtype=tf.float32),
+                                                         
+                'h31':tf.Variable(gram_schmidt(weights['h31'].eval()),dtype=tf.float32),
+                'h32':tf.Variable(gram_schmidt(weights['h32'].eval()),dtype=tf.float32),
+                'h33':tf.Variable(gram_schmidt(weights['h33'].eval()),dtype=tf.float32),
+                'h34':tf.Variable(gram_schmidt(weights['h34'].eval()),dtype=tf.float32),
+                                                        
+                'h41':tf.Variable(gram_schmidt(weights['h41'].eval()),dtype=tf.float32),
+                'h42':tf.Variable(gram_schmidt(weights['h42'].eval()),dtype=tf.float32),
+                'h43':tf.Variable(gram_schmidt(weights['h43'].eval()),dtype=tf.float32),
+                'h44':tf.Variable(gram_schmidt(weights['h44'].eval()),dtype=tf.float32),
+                'h45':tf.Variable(gram_schmidt(weights['h45'].eval()),dtype=tf.float32),
+                'h46':tf.Variable(gram_schmidt(weights['h46'].eval()),dtype=tf.float32),
+                'h47':tf.Variable(gram_schmidt(weights['h47'].eval()),dtype=tf.float32),
+                'h48':tf.Variable(gram_schmidt(weights['h48'].eval()),dtype=tf.float32),
+                                                            
+                'summary':weights['summary'],
+                'out1':weights['out1']
+                }
+                sess.run(tf.variables_initializer([weights['h1'],weights['h21'],weights['h22'],weights['h31'],weights['h32'],weights['h33'],weights['h34'],weights['h41'],weights['h42'],weights['h43'],weights['h44'],weights['h45'],weights['h46'],weights['h47'],weights['h48']])) # re-initialize variables
+        
+        
+        
+        
         '''
         # empirical slowdown after reaching 98%
         if accuracy_test_val>98. and (not passed_98):
