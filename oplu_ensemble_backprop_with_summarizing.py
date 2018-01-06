@@ -10,7 +10,7 @@ np.random.seed(1000)
 # Import MNIST data
 
 
-augmented_datasets_available = 100
+augmented_datasets_available = 250
 
     
 mat_contents =  h5py.File('matlab_mnist/affNIST.mat')
@@ -84,14 +84,14 @@ import tensorflow as tf
 #from adamax import *
 
 # Parameters
-batch_size = 1000
+batch_size = 100
 
-learning_rate = 0.00005#1.0/batch_size**2
+learning_rate = 0.01#1.0/batch_size**2
 learning_rate_decay = 0.99
 
 momentum = 0.3
 
-training_epochs = 1000
+training_epochs = 5000
 display_step = 1
 
 # Network Parameters
@@ -134,7 +134,7 @@ def ort_initializer(shape, dtype=tf.float32):
       q = u if u.shape == flat_shape else v
       q = q.reshape(shape) #this needs to be corrected to float32
       #print('you have initialized one orthogonal matrix.')
-      mat=tf.constant(scale * q[:shape[0], :shape[1]], dtype=tf.float32)
+      mat=tf.constant(gram_schmidt(scale * q[:shape[0], :shape[1]]), dtype=tf.float32)
       
       #i = tf.matmul(mat,mat,transpose_b=True)
       
@@ -452,13 +452,13 @@ out8s = tf.nn.softmax(out8)
 mean_out = tf.reduce_mean(tf.stack([out1s,out2s,out3s,out4s,out5s,out6s,out7s,out8s],1),1)
 '''
 
-out1s = tf.nn.softmax(out1)
+#out1s = tf.nn.softmax(out1)
 # Construct model
-logits = out1s #mean_out #multilayer_perceptron(X)
+logits = out1 #mean_out #multilayer_perceptron(X)
 
 # Define loss and optimizer
-#cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=Y))
-cost = tf.nn.l2_loss((Y-logits))
+cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=Y))
+#cost = tf.nn.l2_loss((Y-logits))
 
 #opt = tf.train.GradientDescentOptimizer(learning_rate=tf_learning_rate)
 #opt = tf.train.MomentumOptimizer(learning_rate=tf_learning_rate, momentum=momentum, use_nesterov=True)
@@ -752,7 +752,7 @@ init = tf.global_variables_initializer()
 passed_98 = False
 passed_985 = False
 passed_987 = False
-passed_9884 = False
+passed_988 = False
 passed_99 = False
 passed_992 = False
 
@@ -766,10 +766,48 @@ def pearson_correlation_41():
     return pearson_correlation_x_axis(even41[0,:],even41[1,:])
 
 
+
+def tf_gram_schmidt(vectors):
+    # add batch dimension for matmul
+    basis = tf.expand_dims(vectors[0,:]/tf.norm(vectors[0,:]),0)
+    for i in range(1,vectors.get_shape()[0].value):
+        v = vectors[i,:]
+        # add batch dimension for matmul
+        v = tf.expand_dims(v,0) 
+        w = v - tf.matmul(tf.matmul(v, basis, transpose_b=True), basis)
+         # I assume that my matrix is close to orthogonal
+        basis = tf.concat([basis, w/tf.norm(w)],axis=0)
+    return basis
+
+# construct graph for fixing orthogonality
+fix_orthogonality = [tf.assign(weights['h1'], tf_gram_schmidt(weights['h1'])),
+                        tf.assign(weights['h21'], tf_gram_schmidt(weights['h21'])),
+                        tf.assign(weights['h22'], tf_gram_schmidt(weights['h22'])),
+                        
+                        tf.assign(weights['h31'], tf_gram_schmidt(weights['h31'])),
+                        tf.assign(weights['h32'], tf_gram_schmidt(weights['h32'])),
+                        tf.assign(weights['h33'], tf_gram_schmidt(weights['h33'])),
+                        tf.assign(weights['h34'], tf_gram_schmidt(weights['h34'])),
+                        
+                        tf.assign(weights['h41'], tf_gram_schmidt(weights['h41'])),
+                        tf.assign(weights['h42'], tf_gram_schmidt(weights['h42'])),
+                        tf.assign(weights['h43'], tf_gram_schmidt(weights['h43'])),
+                        tf.assign(weights['h44'], tf_gram_schmidt(weights['h44'])),
+                        tf.assign(weights['h45'], tf_gram_schmidt(weights['h45'])),
+                        tf.assign(weights['h46'], tf_gram_schmidt(weights['h46'])),
+                        tf.assign(weights['h47'], tf_gram_schmidt(weights['h47'])),
+                        tf.assign(weights['h48'], tf_gram_schmidt(weights['h48']))
+                        
+                    
+                        ]
+
+
+
+
 with tf.Session() as sess:
     sess.run(init)
     
-    
+    '''
     #### 
     print('check orthogonality of inner layer h2 at start')
     p = tf.matmul(weights['h21'], weights['h21'],transpose_a=True)
@@ -777,6 +815,7 @@ with tf.Session() as sess:
     print(p.eval()) # just take last batch, do not generate anything
     #print(p.eval({x: mnist.test.images, y: mnist.test.labels}))
     ####
+    '''
    
     
     
@@ -819,45 +858,22 @@ with tf.Session() as sess:
         
         
         # Apply gram_schmidt to fix weights
+        
         if ort_discrepancy21 > 0.001:
                 print("Fixing orthogonality...")
                 
-                weights = {
-                # non-square matrix, watch rows/columns!
-                'h1': tf.Variable(gram_schmidt(weights['h1'].eval()),dtype=tf.float32),
-                
-                'h21':tf.Variable(gram_schmidt(weights['h21'].eval()),dtype=tf.float32),
-                'h22':tf.Variable(gram_schmidt(weights['h22'].eval()),dtype=tf.float32),
-                                                         
-                'h31':tf.Variable(gram_schmidt(weights['h31'].eval()),dtype=tf.float32),
-                'h32':tf.Variable(gram_schmidt(weights['h32'].eval()),dtype=tf.float32),
-                'h33':tf.Variable(gram_schmidt(weights['h33'].eval()),dtype=tf.float32),
-                'h34':tf.Variable(gram_schmidt(weights['h34'].eval()),dtype=tf.float32),
-                                                        
-                'h41':tf.Variable(gram_schmidt(weights['h41'].eval()),dtype=tf.float32),
-                'h42':tf.Variable(gram_schmidt(weights['h42'].eval()),dtype=tf.float32),
-                'h43':tf.Variable(gram_schmidt(weights['h43'].eval()),dtype=tf.float32),
-                'h44':tf.Variable(gram_schmidt(weights['h44'].eval()),dtype=tf.float32),
-                'h45':tf.Variable(gram_schmidt(weights['h45'].eval()),dtype=tf.float32),
-                'h46':tf.Variable(gram_schmidt(weights['h46'].eval()),dtype=tf.float32),
-                'h47':tf.Variable(gram_schmidt(weights['h47'].eval()),dtype=tf.float32),
-                'h48':tf.Variable(gram_schmidt(weights['h48'].eval()),dtype=tf.float32),
-                                                            
-                'summary':weights['summary'],
-                'out1':weights['out1']
-                }
-                sess.run(tf.variables_initializer([weights['h1'],weights['h21'],weights['h22'],weights['h31'],weights['h32'],weights['h33'],weights['h34'],weights['h41'],weights['h42'],weights['h43'],weights['h44'],weights['h45'],weights['h46'],weights['h47'],weights['h48']])) # re-initialize variables
+                sess.run(fix_orthogonality)
         
         
         
         
-        '''
+        
         # empirical slowdown after reaching 98%
         if accuracy_test_val>98. and (not passed_98):
             learning_rate = learning_rate/1.5
             passed_98 = True
             momentum += 0.1
-        '''
+        
             
         if accuracy_test_val>98.5 and (not passed_985):
             learning_rate = learning_rate/2
@@ -870,10 +886,14 @@ with tf.Session() as sess:
             passed_987 = True
             momentum += 0.1
             
-        if accuracy_test_val>98.84 and (not passed_9884):
-            learning_rate = learning_rate/2.5
+        '''
+            
+        if accuracy_test_val>98.8 and (not passed_988):
+            learning_rate = learning_rate/1.5
             passed_9884 = True
             #momentum += 0.1
+            
+        
             
         if accuracy_test_val>99. and (not passed_99):
             learning_rate = learning_rate/1.5
@@ -883,7 +903,7 @@ with tf.Session() as sess:
             learning_rate = learning_rate/1.5
             passed_992 = True
 
-        '''
+        
 
 
     print("Optimization Finished!")
