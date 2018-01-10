@@ -10,7 +10,7 @@ np.random.seed(1000)
 # Import MNIST data
 
 
-augmented_datasets_available = 250
+augmented_datasets_available = 100
 
     
 mat_contents =  h5py.File('matlab_mnist/affNIST.mat')
@@ -39,7 +39,7 @@ def load_epoch(epoch):
     X1 = np.array(mat_contents['all_images_train'],dtype=np.float32) # (1600000,1600) #already in Float32 from data augmenter!
     
     
-    #X1 = np.random.normal(0,1,X2.shape)
+    #X1 = np.random.normal(0,1,X1.shape)
     
     
     T1 = np.array(mat_contents['all_labels_train'],dtype=np.float32) # (1600000, 10)
@@ -116,8 +116,10 @@ tf_learning_rate = tf.placeholder(tf.float32, shape=[])  # need to be a placehol
 
 b = np.array([])
 
+'''
 # function  that initializes orthogonal matrix
 def ort_initializer(shape, dtype=tf.float32):
+      
     
       
       scale = 1.0
@@ -134,14 +136,31 @@ def ort_initializer(shape, dtype=tf.float32):
       q = u if u.shape == flat_shape else v
       q = q.reshape(shape) #this needs to be corrected to float32
       #print('you have initialized one orthogonal matrix.')
-      mat=tf.constant(gram_schmidt(scale * q[:shape[0], :shape[1]]), dtype=tf.float32)
+      mat=tf.constant(scale * q[:shape[0], :shape[1]], dtype=tf.float32)
       
       #i = tf.matmul(mat,mat,transpose_b=True)
       
       #scale = 1.0/tf.sqrt(i[0,0])
       
       return scale*mat
-
+'''
+def ort_initializer(shape, dtype=tf.float32):
+    
+      a=shape[0]
+      b=shape[1]
+      
+      if a>b:
+          
+          A = np.random.normal(0,1,(a,a))
+          q, _ = np.linalg.qr(A)  # q -orthonormal
+          q = q[:,:b] # cut q
+          
+      else:
+          A = np.random.normal(0,1,(b,b))
+          q, _ = np.linalg.qr(A)  # q -orthonormal
+          q = q[:a,:] # cut q
+          
+      return tf.constant(q,dtype=dtype)
 
 # compute ||W*W^T - I||L2 for a matrix
 def ort_discrepancy(matrix):
@@ -193,13 +212,54 @@ weights = {
     'h48': tf.Variable(ort_initializer([n_hidden_4, n_hidden_4])),
     
     
-    'summary': tf.Variable(ort_initializer([n_hidden_4*8, n_hidden_4])),
+    'summary': tf.Variable(ort_initializer([n_hidden_4*8,n_hidden_4])), # watch for non-square matrix!
+    #'summary': tf.Variable(tf.random_normal([n_hidden_4*8, n_hidden_4],stddev=0.01)),
     
     'out1': tf.Variable(ort_initializer([n_hidden_4, n_classes]))
       
 }
 
 
+mean_grads = {
+        'h21': tf.Variable(tf.zeros([n_hidden_2, n_hidden_2])),
+        'h22': tf.Variable(tf.zeros([n_hidden_2, n_hidden_2])),
+        'h31': tf.Variable(tf.zeros([n_hidden_3, n_hidden_3])),        
+        'h32': tf.Variable(tf.zeros([n_hidden_3, n_hidden_3])),        
+        'h33': tf.Variable(tf.zeros([n_hidden_3, n_hidden_3])),        
+        'h34': tf.Variable(tf.zeros([n_hidden_3, n_hidden_3])),        
+        
+        'h41': tf.Variable(tf.zeros([n_hidden_4, n_hidden_4])),
+        'h42': tf.Variable(tf.zeros([n_hidden_4, n_hidden_4])),
+        'h43': tf.Variable(tf.zeros([n_hidden_4, n_hidden_4])),
+        'h44': tf.Variable(tf.zeros([n_hidden_4, n_hidden_4])),
+        'h45': tf.Variable(tf.zeros([n_hidden_4, n_hidden_4])),
+        'h46': tf.Variable(tf.zeros([n_hidden_4, n_hidden_4])),
+        'h47': tf.Variable(tf.zeros([n_hidden_4, n_hidden_4])),
+        'h48': tf.Variable(tf.zeros([n_hidden_4, n_hidden_4]))
+        
+        
+    }
+
+# set mean grads to zero before next epoch
+tf_zero_mean_grads = [
+    tf.assign(mean_grads['h21'],tf.zeros([n_hidden_2, n_hidden_2])),
+    tf.assign(mean_grads['h22'],tf.zeros([n_hidden_2, n_hidden_2])),
+    
+    tf.assign(mean_grads['h31'],tf.zeros([n_hidden_3, n_hidden_3])),
+    tf.assign(mean_grads['h32'],tf.zeros([n_hidden_3, n_hidden_3])),
+    tf.assign(mean_grads['h33'],tf.zeros([n_hidden_3, n_hidden_3])),
+    tf.assign(mean_grads['h34'],tf.zeros([n_hidden_3, n_hidden_3])),
+    
+    tf.assign(mean_grads['h41'],tf.zeros([n_hidden_4, n_hidden_4])),
+    tf.assign(mean_grads['h42'],tf.zeros([n_hidden_4, n_hidden_4])),
+    tf.assign(mean_grads['h43'],tf.zeros([n_hidden_4, n_hidden_4])),
+    tf.assign(mean_grads['h44'],tf.zeros([n_hidden_4, n_hidden_4])),
+    tf.assign(mean_grads['h45'],tf.zeros([n_hidden_4, n_hidden_4])),
+    tf.assign(mean_grads['h46'],tf.zeros([n_hidden_4, n_hidden_4])),
+    tf.assign(mean_grads['h47'],tf.zeros([n_hidden_4, n_hidden_4])),
+    tf.assign(mean_grads['h48'],tf.zeros([n_hidden_4, n_hidden_4]))
+    
+    ]
 
 
 
@@ -365,7 +425,11 @@ even1, odd1 = separate_oplu(layer_1_a)
 
 ############## Layer 2
 # separately apply layer 2
+#even1 = tf.ones(tf.shape(even1),dtype=tf.float32)
+
 layer_21_z = tf.matmul(even1, weights['h21'])
+#layer_21_z = tf.matmul(tf.ones(tf.shape(even1),dtype=tf.float32), weights['h21'])
+
 layer_21_a = OPLU(layer_21_z)
 
 layer_22_z = tf.matmul(odd1, weights['h22'])
@@ -667,47 +731,47 @@ d_w_1, d_layer_1_z = backpropagate_split_layer(x, layer_1_z, weights['h21'], wei
 optimizer = [
     
     tf.assign(weights['out1'],
-            tf.subtract(weights['out1'], tf.multiply(tf_learning_rate*(8+np.sqrt(8))/2, d_w_out_1))),
+            tf.subtract(weights['out1'], tf.multiply(tf_learning_rate, d_w_out_1))),
     
     tf.assign(weights['summary'],
             tf.subtract(weights['summary'], tf.multiply(tf_learning_rate, d_layer_summary_w))),
     
     
     tf.assign(weights['h41'],
-            tf.subtract(weights['h41'], tf.multiply(tf_learning_rate*(8+np.sqrt(8))/2, d_w_41))),
+            tf.subtract(weights['h41'], tf.multiply(tf_learning_rate, d_w_41))),
     tf.assign(weights['h42'],
-            tf.subtract(weights['h42'], tf.multiply(tf_learning_rate*(8+np.sqrt(8))/2, d_w_42))),
+            tf.subtract(weights['h42'], tf.multiply(tf_learning_rate, d_w_42))),
     tf.assign(weights['h43'],
-            tf.subtract(weights['h43'], tf.multiply(tf_learning_rate*(8+np.sqrt(8))/2, d_w_43))),
+            tf.subtract(weights['h43'], tf.multiply(tf_learning_rate, d_w_43))),
     tf.assign(weights['h44'],
-            tf.subtract(weights['h44'], tf.multiply(tf_learning_rate*(8+np.sqrt(8))/2, d_w_44))),
+            tf.subtract(weights['h44'], tf.multiply(tf_learning_rate, d_w_44))),
     tf.assign(weights['h45'],
-            tf.subtract(weights['h45'], tf.multiply(tf_learning_rate*(8+np.sqrt(8))/2, d_w_45))),
+            tf.subtract(weights['h45'], tf.multiply(tf_learning_rate, d_w_45))),
     tf.assign(weights['h46'],
-            tf.subtract(weights['h46'], tf.multiply(tf_learning_rate*(8+np.sqrt(8))/2, d_w_46))),
+            tf.subtract(weights['h46'], tf.multiply(tf_learning_rate, d_w_46))),
     tf.assign(weights['h47'],
-            tf.subtract(weights['h47'], tf.multiply(tf_learning_rate*(8+np.sqrt(8))/2, d_w_47))),
+            tf.subtract(weights['h47'], tf.multiply(tf_learning_rate, d_w_47))),
     tf.assign(weights['h48'],
-            tf.subtract(weights['h48'], tf.multiply(tf_learning_rate*(8+np.sqrt(8))/2, d_w_48))),
+            tf.subtract(weights['h48'], tf.multiply(tf_learning_rate, d_w_48))),
     
     
     
     
     
     tf.assign(weights['h31'],
-            tf.subtract(weights['h31'], tf.multiply(tf_learning_rate*(4+np.sqrt(4))/2, d_w_31))),
+            tf.subtract(weights['h31'], tf.multiply(tf_learning_rate, d_w_31))),
     tf.assign(weights['h32'],
-            tf.subtract(weights['h32'], tf.multiply(tf_learning_rate*(4+np.sqrt(4))/2, d_w_32))),
+            tf.subtract(weights['h32'], tf.multiply(tf_learning_rate, d_w_32))),
     tf.assign(weights['h33'],
-            tf.subtract(weights['h33'], tf.multiply(tf_learning_rate*(4+np.sqrt(4))/2, d_w_33))),
+            tf.subtract(weights['h33'], tf.multiply(tf_learning_rate, d_w_33))),
     tf.assign(weights['h34'],
-            tf.subtract(weights['h34'], tf.multiply(tf_learning_rate*(4+np.sqrt(4))/2, d_w_34))),
+            tf.subtract(weights['h34'], tf.multiply(tf_learning_rate, d_w_34))),
     
     
     tf.assign(weights['h21'],
-            tf.subtract(weights['h21'], tf.multiply(tf_learning_rate*(2+np.sqrt(2))/2, d_w_21))),
+            tf.subtract(weights['h21'], tf.multiply(tf_learning_rate, d_w_21))),
     tf.assign(weights['h22'],
-            tf.subtract(weights['h22'], tf.multiply(tf_learning_rate*(2+np.sqrt(2))/2, d_w_22))),
+            tf.subtract(weights['h22'], tf.multiply(tf_learning_rate, d_w_22))),
     
     
     
@@ -715,9 +779,30 @@ optimizer = [
     tf.assign(weights['h1'],
             tf.subtract(weights['h1'], tf.multiply(tf_learning_rate, d_w_1)))
     
+    ]
+'''    
+    #add to mean gradients
+
+    tf.assign(mean_grads['h21'],tf.add(mean_grads['h21'],tf_learning_rate*d_w_21)),
+    tf.assign(mean_grads['h22'],tf.add(mean_grads['h22'],tf_learning_rate*d_w_22)),
+    
+    tf.assign(mean_grads['h31'],tf.add(mean_grads['h31'],tf_learning_rate*d_w_31)),
+    tf.assign(mean_grads['h32'],tf.add(mean_grads['h32'],tf_learning_rate*d_w_32)),
+    tf.assign(mean_grads['h33'],tf.add(mean_grads['h33'],tf_learning_rate*d_w_33)),
+    tf.assign(mean_grads['h34'],tf.add(mean_grads['h34'],tf_learning_rate*d_w_34)),
+    
+    tf.assign(mean_grads['h41'],tf.add(mean_grads['h41'],tf_learning_rate*d_w_41)),
+    tf.assign(mean_grads['h42'],tf.add(mean_grads['h42'],tf_learning_rate*d_w_42)),
+    tf.assign(mean_grads['h43'],tf.add(mean_grads['h43'],tf_learning_rate*d_w_43)),
+    tf.assign(mean_grads['h44'],tf.add(mean_grads['h44'],tf_learning_rate*d_w_44)),
+    tf.assign(mean_grads['h45'],tf.add(mean_grads['h45'],tf_learning_rate*d_w_45)),
+    tf.assign(mean_grads['h46'],tf.add(mean_grads['h46'],tf_learning_rate*d_w_46)),
+    tf.assign(mean_grads['h47'],tf.add(mean_grads['h47'],tf_learning_rate*d_w_47)),
+    tf.assign(mean_grads['h48'],tf.add(mean_grads['h48'],tf_learning_rate*d_w_48))
+    
     
     ]
-
+'''
 
 
 
@@ -852,18 +937,48 @@ with tf.Session() as sess:
             
             ort_discrepancy21 = ort_discrepancy(weights['h21']).eval()
             
-            print("Epoch:", '%04d' % (epoch+1), "lr: %1.9f"%learning_rate," cost={:.9f}".format(avg_cost),"||W21*W21^t - I||L2 = %1.4f " % ort_discrepancy21, "||W48*W48^t - I||L2 = %1.4f " % ort_discrepancy(weights['h48']).eval(),  "Pearson layer 2 = %1.4f "%pearson_correlation_21().eval({X: batch_x, Y: batch_y, tf_learning_rate: learning_rate}), "Pearson layer 3 = %1.4f "%pearson_correlation_31().eval({X: batch_x, Y: batch_y, tf_learning_rate: learning_rate}), "Pearson layer 4 = %1.4f "%pearson_correlation_41().eval({X: batch_x, Y: batch_y, tf_learning_rate: learning_rate}), "accuracy_train = %1.2f%%" % accuracy_train_val, "accuracy_test = %1.2f%%" % accuracy_test_val)
+            #print("Epoch:", '%04d' % (epoch+1), "lr: %1.9f"%learning_rate," cost={:.9f}".format(avg_cost),"||W21*W21^t - I||L2 = %1.4f " % ort_discrepancy21, "||W48*W48^t - I||L2 = %1.4f " % ort_discrepancy(weights['h48']).eval(),  "Pearson layer 2 = %1.4f "%pearson_correlation_21().eval({X: batch_x, Y: batch_y, tf_learning_rate: learning_rate}), "Pearson layer 3 = %1.4f "%pearson_correlation_31().eval({X: batch_x, Y: batch_y, tf_learning_rate: learning_rate}), "Pearson layer 4 = %1.4f "%pearson_correlation_41().eval({X: batch_x, Y: batch_y, tf_learning_rate: learning_rate}), "accuracy_train = %1.2f%%" % accuracy_train_val, "accuracy_test = %1.2f%%" % accuracy_test_val)
+            
+            
+            print("Epoch:", '%04d' % (epoch+1), "lr: %1.9f"%learning_rate," cost={:.9f}".format(avg_cost),"||W21*W21^t - I||L2 = %1.4f " % ort_discrepancy21, "||W48*W48^t - I||L2 = %1.4f " % ort_discrepancy(weights['h48']).eval(), "accuracy_train = %1.2f%%" % accuracy_train_val, "accuracy_test = %1.2f%%" % accuracy_test_val)
+           
+            
            
         learning_rate = learning_rate*learning_rate_decay  #manually decay learning rate
         
         
         # Apply gram_schmidt to fix weights
         
-        if ort_discrepancy21 > 0.001:
-                print("Fixing orthogonality...")
+        #if ort_discrepancy21 > 0.001:
+        #        print("Fixing orthogonality...")
                 
-                sess.run(fix_orthogonality)
+        sess.run(fix_orthogonality)
         
+        # print mean gradients
+        '''
+        print("mean grad h21: %1.4f"%tf.norm(mean_grads['h21']).eval())
+        print("mean grad h22: %1.4f"%tf.norm(mean_grads['h22']).eval())
+        print("")
+        
+        print("mean grad h31: %1.4f"%tf.norm(mean_grads['h31']).eval())
+        print("mean grad h32: %1.4f"%tf.norm(mean_grads['h32']).eval())
+        print("mean grad h33: %1.4f"%tf.norm(mean_grads['h33']).eval())
+        print("mean grad h34: %1.4f"%tf.norm(mean_grads['h34']).eval())
+        print("")
+        
+        
+        print("mean grad h41: %1.4f"%tf.norm(mean_grads['h41']).eval())
+        print("mean grad h42: %1.4f"%tf.norm(mean_grads['h42']).eval())
+        print("mean grad h43: %1.4f"%tf.norm(mean_grads['h43']).eval())
+        print("mean grad h44: %1.4f"%tf.norm(mean_grads['h44']).eval())
+        print("mean grad h45: %1.4f"%tf.norm(mean_grads['h45']).eval())
+        print("mean grad h46: %1.4f"%tf.norm(mean_grads['h46']).eval())
+        print("mean grad h47: %1.4f"%tf.norm(mean_grads['h47']).eval())
+        print("mean grad h48: %1.4f"%tf.norm(mean_grads['h48']).eval())
+        '''
+        
+        
+        sess.run(tf_zero_mean_grads)
         
         
         
@@ -876,7 +991,7 @@ with tf.Session() as sess:
         
             
         if accuracy_test_val>98.5 and (not passed_985):
-            learning_rate = learning_rate/2
+            learning_rate = learning_rate/4
             passed_985 = True
             momentum += 0.1
         '''
@@ -888,19 +1003,19 @@ with tf.Session() as sess:
             
         '''
             
-        if accuracy_test_val>98.8 and (not passed_988):
-            learning_rate = learning_rate/1.5
+        if accuracy_test_val>98.75 and (not passed_988):
+            learning_rate = learning_rate/2
             passed_9884 = True
             #momentum += 0.1
             
         
             
         if accuracy_test_val>99. and (not passed_99):
-            learning_rate = learning_rate/1.5
+            learning_rate = learning_rate/2
             passed_99 = True
             
         if accuracy_test_val>99.2 and (not passed_992):
-            learning_rate = learning_rate/1.5
+            learning_rate = learning_rate/2
             passed_992 = True
 
         
