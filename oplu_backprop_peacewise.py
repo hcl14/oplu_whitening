@@ -75,19 +75,15 @@ def load_epoch(epoch):
     #load new data
     
     
-    X2 = np.array(mat_contents['all_images_train'],dtype=np.float32) # (1600000,1600) #already in Float32 from data augmenter!
     
     global X1,T1
     
-    X1 = np.random.normal(0,1,X2.shape)
-    
-    
-    T1 = np.array(mat_contents['all_labels_train'],dtype=np.float32) # (1600000, 10)
+    X1 = np.array(mat_contents['all_images_train'],dtype=np.float32) # (10000, 1600) FLOAT32
+    T1 = np.array(mat_contents['all_labels_train'],dtype=np.float32) # (10000, 10) 
     
     
     # clear space
     mat_contents = None
-    
     
 
 load_epoch(0)
@@ -527,7 +523,7 @@ out_layer = tf.matmul(layer_20_a, weights['out'])
 logits = out_layer #multilayer_perceptron(X)
 
 # Define loss and optimizer
-cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=Y))
+cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=Y))
 
 #opt = tf.train.GradientDescentOptimizer(learning_rate=tf_learning_rate)
 #opt = tf.train.MomentumOptimizer(learning_rate=tf_learning_rate, momentum=momentum, use_nesterov=True)
