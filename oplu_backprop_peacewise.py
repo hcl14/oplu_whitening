@@ -36,7 +36,7 @@ np.random.seed(1001)
 # Import MNIST data
 
 
-augmented_datasets_available = 100
+augmented_datasets_available = 250
 
     
 mat_contents =  h5py.File('matlab_mnist/affNIST.mat')
@@ -467,7 +467,7 @@ def peacewise_activation_derivative(x):
 #x = X
 x = tf.contrib.layers.batch_norm(X, fused=True, data_format='NCHW')
 
-x = x - tf.reduce_mean(x)
+x = x - tf.reduce_mean(x,0)
 
 ones = tf.ones([tf.shape(x)[0],1],tf.float32)
 
@@ -714,64 +714,45 @@ optimizer = [
     
     
     tf.assign(weights['h1'],
-            tf_gram_schmidt(tf.subtract(weights['h1'], grads['h1']))),
-    
+            tf.subtract(weights['h1'], grads['h1'])),
     tf.assign(weights['h2'],
-            tf_gram_schmidt(tf.subtract(weights['h2'], grads['h2']))),
-    
+            tf.subtract(weights['h2'], grads['h2'])),
     tf.assign(weights['h3'],
-            tf_gram_schmidt(tf.subtract(weights['h3'], grads['h3']))),
-    
+            tf.subtract(weights['h3'], grads['h3'])),
     tf.assign(weights['h4'],
-            tf_gram_schmidt(tf.subtract(weights['h4'], grads['h4']))),
-    
+            tf.subtract(weights['h4'], grads['h4'])),
     tf.assign(weights['h5'],
-            tf_gram_schmidt(tf.subtract(weights['h5'], grads['h5']))),
-    
+            tf.subtract(weights['h5'], grads['h5'])),
     tf.assign(weights['h6'],
-            tf_gram_schmidt(tf.subtract(weights['h6'], grads['h6']))),
-    
+            tf.subtract(weights['h6'], grads['h6'])),
     tf.assign(weights['h7'],
-            tf_gram_schmidt(tf.subtract(weights['h7'], grads['h7']))),
-    
+            tf.subtract(weights['h7'], grads['h7'])),
     tf.assign(weights['h8'],
-            tf_gram_schmidt(tf.subtract(weights['h8'], grads['h8']))),
-    
+            tf.subtract(weights['h8'], grads['h8'])),
     tf.assign(weights['h9'],
-            tf_gram_schmidt(tf.subtract(weights['h9'], grads['h9']))),
-    
+            tf.subtract(weights['h9'], grads['h9'])),
     tf.assign(weights['h10'],
-            tf_gram_schmidt(tf.subtract(weights['h10'], grads['h10']))),
-    
+            tf.subtract(weights['h10'], grads['h10'])),
     tf.assign(weights['h11'],
-            tf_gram_schmidt(tf.subtract(weights['h11'], grads['h11']))),
-    
+            tf.subtract(weights['h11'], grads['h11'])),
     tf.assign(weights['h12'],
-            tf_gram_schmidt(tf.subtract(weights['h12'], grads['h12']))),
-    
+            tf.subtract(weights['h12'], grads['h12'])),
     tf.assign(weights['h13'],
-            tf_gram_schmidt(tf.subtract(weights['h13'], grads['h13']))),
-    
+            tf.subtract(weights['h13'], grads['h13'])),
     tf.assign(weights['h14'],
-            tf_gram_schmidt(tf.subtract(weights['h14'], grads['h14']))),
-    
+            tf.subtract(weights['h14'], grads['h14'])),
     tf.assign(weights['h15'],
-            tf_gram_schmidt(tf.subtract(weights['h15'], grads['h15']))),
-    
+            tf.subtract(weights['h15'], grads['h15'])),
     tf.assign(weights['h16'],
-            tf_gram_schmidt(tf.subtract(weights['h16'], grads['h16']))),
-    
+            tf.subtract(weights['h16'], grads['h16'])),
     tf.assign(weights['h17'],
-            tf_gram_schmidt(tf.subtract(weights['h17'], grads['h17']))),
-    
+            tf.subtract(weights['h17'], grads['h17'])),
     tf.assign(weights['h18'],
-            tf_gram_schmidt(tf.subtract(weights['h18'], grads['h18']))),
-    
+            tf.subtract(weights['h18'], grads['h18'])),
     tf.assign(weights['h19'],
-            tf_gram_schmidt(tf.subtract(weights['h19'], grads['h19']))),
-    
+            tf.subtract(weights['h19'], grads['h19'])),
     tf.assign(weights['h20'],
-            tf_gram_schmidt(tf.subtract(weights['h20'], grads['h20']))),
+            tf.subtract(weights['h20'], grads['h20'])),
     
     
     tf.assign(weights['out'],
@@ -781,6 +762,52 @@ optimizer = [
     ]
 
 
+orthogonalize = [
+    tf.assign(weights['h1'],
+            tf_gram_schmidt(weights['h1'])),
+    
+    tf.assign(weights['h2'],
+            tf_gram_schmidt(weights['h2'])),
+    
+    tf.assign(weights['h3'],
+            tf_gram_schmidt(weights['h3'])),
+    
+    tf.assign(weights['h4'],
+            tf_gram_schmidt(weights['h4'])),
+    tf.assign(weights['h5'],
+            tf_gram_schmidt(weights['h5'])),
+    tf.assign(weights['h6'],
+            tf_gram_schmidt(weights['h6'])),
+    tf.assign(weights['h7'],
+            tf_gram_schmidt(weights['h7'])),
+    tf.assign(weights['h8'],
+            tf_gram_schmidt(weights['h8'])),
+    tf.assign(weights['h9'],
+            tf_gram_schmidt(weights['h9'])),
+    tf.assign(weights['h10'],
+            tf_gram_schmidt(weights['h10'])),
+    tf.assign(weights['h11'],
+            tf_gram_schmidt(weights['h11'])),
+    tf.assign(weights['h12'],
+            tf_gram_schmidt(weights['h12'])),
+    tf.assign(weights['h13'],
+            tf_gram_schmidt(weights['h13'])),
+    tf.assign(weights['h14'],
+            tf_gram_schmidt(weights['h14'])),
+    tf.assign(weights['h15'],
+            tf_gram_schmidt(weights['h15'])),
+    tf.assign(weights['h16'],
+            tf_gram_schmidt(weights['h16'])),
+    tf.assign(weights['h17'],
+            tf_gram_schmidt(weights['h17'])),
+    tf.assign(weights['h18'],
+            tf_gram_schmidt(weights['h18'])),
+    tf.assign(weights['h19'],
+            tf_gram_schmidt(weights['h19'])),
+    tf.assign(weights['h20'],
+            tf_gram_schmidt(weights['h20']))
+    
+    ]
 
 
 
@@ -871,10 +898,11 @@ with tf.Session() as sess:
             
             #logger.debug("i=%05d, %s"%(i,np_grads))
             
-            if(i%10)==0:
+            if(i%1000)==0:
                 accuracy_train_val = (accuracy.eval({X: X1, Y: T1}))*100
                 accuracy_test_val = (accuracy.eval({X: X2, Y: T2}))*100
                 print("i: %04d, accuracy_train = %1.2f%%, accuracy_test = %1.2f%%" % (i,accuracy_train_val,accuracy_test_val))
+                sess.run(orthogonalize)
             
             
             # Compute average loss
